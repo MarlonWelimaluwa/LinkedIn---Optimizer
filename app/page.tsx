@@ -186,6 +186,7 @@ LinkedPro AI — linkedin-optimizer.vercel.app
               <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.5 }}>Linked<span style={{ color: '#0064ff' }}>Pro</span></span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setTool('home'); setProfileResult(null); setPostResult(null); setError(''); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#64748b', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>← Home</button>
               {[{id:'profile',label:'Profile Optimizer'},{id:'posts',label:'Post Generator'}].map(t => (
                   <button key={t.id} onClick={() => { setTool(t.id as Tool); setError(''); }} style={{ padding: '8px 16px', borderRadius: 8, border: tool === t.id ? '1px solid #0064ff' : '1px solid rgba(255,255,255,0.1)', background: tool === t.id ? 'rgba(0,100,255,0.15)' : 'transparent', color: tool === t.id ? '#60a5fa' : '#94a3b8', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                     {t.label}
@@ -274,6 +275,8 @@ LinkedPro AI — linkedin-optimizer.vercel.app
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+                      <button onClick={() => setProfileResult(null)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>← Back</button>
 
                       {/* SCORES */}
                       <div style={{ background: '#0f1623', borderRadius: 16, padding: 28, border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -453,6 +456,7 @@ LinkedPro AI — linkedin-optimizer.vercel.app
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      <button onClick={() => setPostResult(null)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>← Back</button>
                       <div style={{ padding: '16px 20px', borderRadius: 12, background: 'rgba(0,100,255,0.08)', border: '1px solid rgba(0,100,255,0.2)', fontSize: 14, color: '#94a3b8', lineHeight: 1.6 }}>
                         <span style={{ color: '#60a5fa', fontWeight: 600 }}>Content Strategy: </span>{postResult.contentStrategy}
                       </div>
