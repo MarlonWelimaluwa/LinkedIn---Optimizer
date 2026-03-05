@@ -113,28 +113,27 @@ function extractJSON(text: string): string {
     return cleaned.slice(start, end + 1);
 }
 
-async function callOpenAI(system: string, user: string): Promise<string> {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY || ''}`,
-        },
-        body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            max_tokens: 4000,
-            temperature: 0.4,
-            response_format: { type: 'json_object' },
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: user },
-            ],
-        }),
-    });
+async function callGemini(system: string, user: string): Promise<string> {
+    const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY || ''}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                systemInstruction: { parts: [{ text: system }] },
+                contents: [{ role: 'user', parts: [{ text: user }] }],
+                generationConfig: {
+                    temperature: 0.4,
+                    maxOutputTokens: 8192,
+                    responseMimeType: 'application/json',
+                },
+            }),
+        }
+    );
     const d = await res.json();
-    if (d.error) throw new Error(`OpenAI error: ${d.error.message}`);
-    const raw = d.choices?.[0]?.message?.content || '';
-    if (!raw) throw new Error('Empty response');
+    if (d.error) throw new Error(`Gemini error: ${d.error.message}`);
+    const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!raw) throw new Error('Empty response from Gemini');
     return extractJSON(raw);
 }
 
@@ -187,7 +186,7 @@ Analyze every section and return this exact JSON:
     "thisMonth": ["specific action 1","specific action 2","specific action 3"]
   }
 }`;
-            raw = await callOpenAI(SYSTEM_PROFILE, usr);
+            raw = await callGemini(SYSTEM_PROFILE, usr);
 
         } else if (tool === 'posts') {
             const { topic, background, goal, industry } = body;
@@ -217,7 +216,7 @@ Return this exact JSON:
     }
   ]
 }`;
-            raw = await callOpenAI(SYSTEM_POSTS, usr);
+            raw = await callGemini(SYSTEM_POSTS, usr);
         } else {
             return NextResponse.json({ ok: false, error: 'Unknown tool' }, { status: 400 });
         }
