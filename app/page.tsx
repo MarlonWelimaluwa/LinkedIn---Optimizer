@@ -284,15 +284,15 @@ Return this exact JSON:
     function cy(n: number) { if (y + n > H - 18) np(); }
     function cl(t: string) {
       return (t || '')
-          .replace(/\*\*([^*]+)\*\*/g,'$1')
-          .replace(/\*([^*]+)\*/g,'$1')
-          .replace(/\*/g,'')
-          .replace(/✓/g,'+').replace(/✗/g,'x').replace(/→/g,'>').replace(/←/g,'<')
-          .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
-          .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
-          .replace(/[^\x20-\x7E\xA0-\xFF]/g,' ')
-          .replace(/  +/g,' ')
-          .trim();
+        .replace(/\*\*([^*]+)\*\*/g,'$1')
+        .replace(/\*([^*]+)\*/g,'$1')
+        .replace(/\*/g,'')
+        .replace(/✓/g,'+').replace(/✗/g,'x').replace(/→/g,'>').replace(/←/g,'<')
+        .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
+        .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
+        .replace(/[^\x20-\x7E\xA0-\xFF]/g,' ')
+        .replace(/  +/g,' ')
+        .trim();
     }
     function wrap(t: string, w: number, fs: number) { doc.setFontSize(fs); return doc.splitTextToSize(cl(t), w); }
     function scoreColor(s: number): [number,number,number] { return s >= 80 ? [22,163,74] : s >= 60 ? [202,138,4] : [220,38,38]; }
