@@ -172,7 +172,7 @@ Analyze every section and return this exact JSON:
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: SYSTEM_PROFILE }] },
               contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-              generationConfig: { temperature: 0.4, maxOutputTokens: 32000, responseMimeType: 'application/json' },
+              generationConfig: { temperature: 0.4, maxOutputTokens: 65000, responseMimeType: 'application/json' },
             }),
           }
       );
@@ -260,11 +260,20 @@ Return this exact JSON:
     if (!(window as any).jspdf) {
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        s.onload = () => resolve(); s.onerror = reject;
+        s.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
+        s.onload = () => resolve();
+        s.onerror = () => {
+          // fallback to cdnjs
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+          s2.onload = () => resolve();
+          s2.onerror = () => reject(new Error('Failed to load PDF library. Check your internet connection.'));
+          document.head.appendChild(s2);
+        };
         document.head.appendChild(s);
       });
     }
+    if (!(window as any).jspdf) throw new Error('PDF library not available');
     const { jsPDF } = (window as any).jspdf;
     const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = 210, H = 297, ML = 18, MR = 18, cW = W - ML - MR;
@@ -702,12 +711,19 @@ Return this exact JSON:
     if (!(window as any).jspdf) {
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        s.onload = () => resolve(); s.onerror = reject;
+        s.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
+        s.onload = () => resolve();
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+          s2.onload = () => resolve();
+          s2.onerror = () => reject(new Error('Failed to load PDF library. Check your internet connection.'));
+          document.head.appendChild(s2);
+        };
         document.head.appendChild(s);
       });
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!(window as any).jspdf) throw new Error('PDF library not available');
     const { jsPDF } = (window as any).jspdf;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
