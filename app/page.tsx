@@ -3,7 +3,14 @@ import { useState } from 'react';
 
 const SYSTEM_PROFILE = `You are the "LinkedPro AI Engine" — the world's #1 LinkedIn profile optimization specialist.
 
-LINKEDIN 2026 ALGORITHM RULES YOU MUST APPLY:
+IMPORTANT — WHAT YOU CAN AND CANNOT VERIFY:
+You are analyzing TEXT CONTENT only. You CANNOT see profile photos, banners, URLs, connection counts, or account settings.
+- Items you CAN verify from text: headline quality, about section, experience descriptions, skills list
+- Items you CANNOT verify: profile photo, background banner, custom URL, connection count, recommendations, Creator Mode, Open to Work setting, Featured section
+- For UNVERIFIABLE items: ALWAYS use status "warn" with "Cannot verify from text input — check manually." NEVER use "fail" for something you cannot see.
+- Only use "fail" for content problems you can directly observe in the provided text.
+
+LINKEDIN 2026 ALGORITHM RULES:
 
 HEADLINE (max 220 chars):
 - Most important field for LinkedIn search ranking
@@ -26,15 +33,14 @@ EXPERIENCE:
 SKILLS:
 - LinkedIn allows 50 skills — recommend the most strategic ones
 - Mix broad skills with specific ones
-- Include skills buyers search for
 
-PROFILE COMPLETENESS:
-- Profile photo: Professional headshot — increases profile views by 21x
-- Background banner: Custom branded image
-- Custom URL: linkedin.com/in/yourname
-- Creator Mode, Open to Work/Services, Featured Section, Recommendations
+SCORING RULES — Be fair and accurate:
+- Only penalize for problems visible in the provided text
+- Do NOT penalize for visual elements you cannot verify (photo, banner, URL)
+- Score reflects text content quality only
+- A complete, keyword-rich headline scores 70-90. Generic one-word title scores 20-40.
 
-Give specific copy-paste ready rewrites. Score every section. Be brutally honest.
+Give specific copy-paste ready rewrites. Score every section. Be brutally honest about text content.
 OUTPUT: ONLY valid JSON. No markdown. No explanation. No text before or after.`;
 
 const SYSTEM_POSTS = `You are the "LinkedPro AI Engine" — a world-class LinkedIn content strategist and viral post writer.
@@ -140,11 +146,15 @@ Analyze every section and return this exact JSON:
   "keywordsToAdd": ["keyword 1","keyword 2","keyword 3","keyword 4","keyword 5"],
   "keywordsToRemove": ["weak word 1","word 2","word 3"],
   "profileChecks": [
-    {"section":"Headline","status":"fail","issue":"specific problem found","fix":"exact copy-paste fix ready to apply"},
-    {"section":"About","status":"warn","issue":"specific problem","fix":"exact fix"},
-    {"section":"Profile Photo","status":"warn","issue":"cannot verify but reminder","fix":"professional headshot, plain background, natural smile"},
-    {"section":"Custom URL","status":"warn","issue":"likely still default URL","fix":"go to Edit Profile then Edit public profile and URL — set to linkedin.com/in/yourfirstnamelastname"},
-    {"section":"Background Banner","status":"fail","issue":"likely default blue banner","fix":"create a 1584x396px banner on Canva showing your skills and contact info"}
+    {"section":"Headline","status":"fail","issue":"specific problem found in the text","fix":"exact copy-paste fix ready to apply"},
+    {"section":"About Section","status":"fail","issue":"specific problem found in the text","fix":"exact fix"},
+    {"section":"Experience Descriptions","status":"warn","issue":"problem found or cannot verify","fix":"exact fix"},
+    {"section":"Skills Count","status":"warn","issue":"problem found or cannot verify","fix":"exact fix"},
+    {"section":"Profile Photo","status":"warn","issue":"Cannot verify from text input — a professional headshot increases views by 21x","fix":"Ensure your photo is a clear headshot, well-lit, plain background, natural smile. Update at linkedin.com/in/yourprofile"},
+    {"section":"Background Banner","status":"warn","issue":"Cannot verify from text input — most profiles leave this as default","fix":"Create a custom 1584x396px banner on Canva showing your skills, title, and a contact detail"},
+    {"section":"Custom URL","status":"warn","issue":"Cannot verify from text input — default URLs look unprofessional","fix":"Go to Edit public profile and URL — set to linkedin.com/in/yourfirstnamelastname"},
+    {"section":"Open to Work vs Providing Services","status":"warn","issue":"Cannot verify from text input — if freelancing, switch from Open to Work to Providing Services","fix":"Go to your profile, click the Open to badge, switch to Providing Services to attract clients instead of employers"},
+    {"section":"Recommendations","status":"warn","issue":"Cannot verify from text input — profiles with 3+ recommendations convert significantly better","fix":"Message 3 former colleagues or clients this week and ask for a short LinkedIn recommendation"}
   ],
   "connectionTips": ["specific tip to grow connections fast 1","tip 2","tip 3","tip 4","tip 5"],
   "visibilityTips": ["specific LinkedIn visibility tip 1","tip 2","tip 3","tip 4","tip 5"],
@@ -247,7 +257,6 @@ Return this exact JSON:
 
   async function downloadPDF() {
     if (!profileResult) return;
-    // Load jsPDF from CDN if not already loaded
     if (!(window as any).jspdf) {
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
@@ -256,15 +265,14 @@ Return this exact JSON:
         document.head.appendChild(s);
       });
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { jsPDF } = (window as any).jspdf;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const W = 210, H = 297, M = 16, cW = 178;
+    const W = 210, H = 297, ML = 18, MR = 18, cW = W - ML - MR;
     let y = 0;
 
-    function np() { doc.addPage(); y = M; }
-    function cy(n: number) { if (y + n > H - M) np(); }
+    // --- HELPERS ---
+    function np() { doc.addPage(); y = 20; }
+    function cy(n: number) { if (y + n > H - 18) np(); }
     function cl(t: string) {
       return (t || '').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
           .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
@@ -272,222 +280,418 @@ Return this exact JSON:
           .replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim();
     }
     function wrap(t: string, w: number, fs: number) { doc.setFontSize(fs); return doc.splitTextToSize(cl(t), w); }
-    function sCol(s: number): [number,number,number] { return s >= 80 ? [0,180,120] : s >= 60 ? [234,179,8] : [220,50,50]; }
+    function scoreColor(s: number): [number,number,number] { return s >= 80 ? [22,163,74] : s >= 60 ? [202,138,4] : [220,38,38]; }
+    function statusColor(s: string): [number,number,number] { return s==='pass'?[22,163,74]:s==='warn'?[202,138,4]:[220,38,38]; }
+    function statusBg(s: string): [number,number,number] { return s==='pass'?[240,253,244]:s==='warn'?[254,252,232]:[254,242,242]; }
+
+    function sectionHeader(title: string, subtitle?: string) {
+      cy(16);
+      doc.setFillColor(30, 64, 175); doc.roundedRect(ML, y, cW, 10, 2, 2, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(title, ML+6, y+7);
+      if (subtitle) {
+        doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text(subtitle, W-MR-2, y+7, { align: 'right' });
+      }
+      y += 14;
+    }
+
+    function scoreBox(label: string, score: number, x: number, bY: number, bW: number) {
+      const col = scoreColor(score);
+      doc.setFillColor(248,250,252); doc.roundedRect(x, bY, bW, 22, 3, 3, 'F');
+      doc.setDrawColor(...col); doc.setLineWidth(0.5); doc.roundedRect(x, bY, bW, 22, 3, 3, 'S');
+      doc.setTextColor(...col); doc.setFontSize(16); doc.setFont('helvetica','bold');
+      doc.text(String(score), x+bW/2, bY+13, { align:'center' });
+      doc.setFontSize(6); doc.setTextColor(100,116,139); doc.setFont('helvetica','normal');
+      doc.text(label.toUpperCase(), x+bW/2, bY+19, { align:'center' });
+    }
+
     function footer(p: number, t: number) {
       doc.setPage(p);
-      doc.setFillColor(0, 100, 255); doc.rect(0, H-8, W, 8, 'F');
-      doc.setTextColor(255,255,255); doc.setFontSize(7);
-      doc.text('LinkedPro AI', M, H-3);
-      doc.text(`Page ${p} of ${t}`, W/2, H-3, { align: 'center' });
-      doc.text('linkedin-optimizer.vercel.app', W-M, H-3, { align: 'right' });
+      doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+      doc.line(ML, H-12, W-MR, H-12);
+      doc.setTextColor(148,163,184); doc.setFontSize(7); doc.setFont('helvetica','normal');
+      doc.text('LinkedPro AI — LinkedIn Profile Optimization Report', ML, H-7);
+      doc.text(`Page ${p} of ${t}`, W/2, H-7, { align:'center' });
+      doc.text(new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}), W-MR, H-7, { align:'right' });
     }
 
-    // COVER
-    doc.setFillColor(8, 12, 20); doc.rect(0, 0, W, H, 'F');
-    doc.setFillColor(0, 100, 255); doc.rect(0, 0, W, 70, 'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(22); doc.setFont('helvetica','bold');
-    doc.text('LinkedIn Profile Optimization Report', M, 28);
-    doc.setFontSize(11); doc.setFont('helvetica','normal');
-    doc.text('Generated by LinkedPro AI', M, 40);
-    doc.setFontSize(9); doc.text(new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}), M, 52);
-    // Score badge
-    doc.setFillColor(20, 29, 46); doc.roundedRect(W-56, 10, 40, 48, 4, 4, 'F');
-    doc.setTextColor(...sCol(profileResult.overallScore));
-    doc.setFontSize(28); doc.setFont('helvetica','bold');
-    doc.text(String(profileResult.overallScore), W-36, 36, { align: 'center' });
-    doc.setFontSize(8); doc.setTextColor(150,180,220);
-    doc.text('/100', W-36, 44, { align: 'center' });
-    doc.text('OVERALL', W-36, 52, { align: 'center' });
-    // Sub scores
-    const scores = [
-      {l:'Headline', v:profileResult.headlineScore},{l:'About', v:profileResult.aboutScore},
-      {l:'Experience', v:profileResult.experienceScore},{l:'Skills', v:profileResult.skillsScore},
+    // ═══════════════════════════════════════
+    // PAGE 1 — COVER
+    // ═══════════════════════════════════════
+    doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F');
+
+    // Top accent bar
+    doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F');
+
+    // Logo area
+    doc.setFillColor(30,64,175); doc.roundedRect(ML, 14, 12, 12, 2, 2, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
+    doc.text('LP', ML+6, 22, { align:'center' });
+    doc.setTextColor(30,64,175); doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text('LinkedPro', ML+16, 22);
+    doc.setTextColor(100,116,139); doc.setFontSize(8); doc.setFont('helvetica','normal');
+    doc.text('AI Profile Optimizer', ML+16, 28);
+
+    // Title section
+    doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+    doc.line(ML, 36, W-MR, 36);
+    doc.setTextColor(15,23,42); doc.setFontSize(22); doc.setFont('helvetica','bold');
+    doc.text('LinkedIn Profile', ML, 52);
+    doc.text('Optimization Report', ML, 63);
+    doc.setFillColor(30,64,175); doc.rect(ML, 68, 40, 2, 'F');
+    doc.setTextColor(100,116,139); doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text('Powered by LinkedPro AI Engine', ML, 76);
+    doc.text(new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}), ML, 83);
+
+    // Overall score — big circle area
+    const scoreVal = profileResult.overallScore;
+    const sCol = scoreColor(scoreVal);
+    doc.setFillColor(248,250,252); doc.roundedRect(W-MR-52, 38, 52, 52, 4, 4, 'F');
+    doc.setDrawColor(...sCol); doc.setLineWidth(1); doc.roundedRect(W-MR-52, 38, 52, 52, 4, 4, 'S');
+    doc.setTextColor(...sCol); doc.setFontSize(28); doc.setFont('helvetica','bold');
+    doc.text(String(scoreVal), W-MR-26, 65, { align:'center' });
+    doc.setFontSize(8); doc.setTextColor(100,116,139); doc.setFont('helvetica','normal');
+    doc.text('/100', W-MR-26, 72, { align:'center' });
+    doc.text('OVERALL SCORE', W-MR-26, 78, { align:'center' });
+    doc.setFontSize(7);
+    doc.text(scoreVal >= 80 ? 'Excellent' : scoreVal >= 60 ? 'Good' : scoreVal >= 40 ? 'Needs Work' : 'Critical', W-MR-26, 84, { align:'center' });
+
+    // Sub scores row
+    const subScores = [
+      {l:'Headline', v:profileResult.headlineScore},
+      {l:'About', v:profileResult.aboutScore},
+      {l:'Experience', v:profileResult.experienceScore},
+      {l:'Skills', v:profileResult.skillsScore},
     ];
-    let sx = M;
-    scores.forEach((s: {l:string, v:number}) => {
-      doc.setFillColor(20,29,46); doc.roundedRect(sx, 82, 40, 22, 3, 3, 'F');
-      doc.setTextColor(...sCol(s.v)); doc.setFontSize(14); doc.setFont('helvetica','bold');
-      doc.text(String(s.v), sx+20, 93, { align: 'center' });
-      doc.setFontSize(7); doc.setTextColor(100,140,180);
-      doc.text(s.l.toUpperCase(), sx+20, 100, { align: 'center' });
-      sx += 46;
-    });
+    const sbW = (cW - 9) / 4;
+    subScores.forEach((s, i) => scoreBox(s.l, s.v, ML + i*(sbW+3), 97, sbW));
+
     // Summary box
-    doc.setFillColor(15,25,45); doc.roundedRect(M, 114, cW, 40, 4, 4, 'F');
-    doc.setTextColor(0,180,120); doc.setFontSize(8); doc.setFont('helvetica','bold');
-    doc.text('SUMMARY', M+8, 124);
-    doc.setTextColor(200,220,240); doc.setFont('helvetica','normal');
-    wrap(profileResult.summary, cW-16, 8.5).slice(0,4).forEach((l:string,i:number) => doc.text(l, M+8, 132+i*6));
+    doc.setFillColor(239,246,255); doc.roundedRect(ML, 126, cW, 8, 2, 2, 'F');
+    doc.setTextColor(30,64,175); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('AUDIT SUMMARY', ML+5, 132);
+    const sumLines = wrap(profileResult.summary, cW-10, 8.5);
+    const sumH = sumLines.length * 5.5 + 16;
+    doc.setFillColor(255,255,255); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+    doc.roundedRect(ML, 134, cW, sumH, 2, 2, 'FD');
+    doc.setTextColor(51,65,85); doc.setFont('helvetica','normal');
+    sumLines.forEach((l: string, i: number) => doc.text(l, ML+5, 142+i*5.5));
 
-    // PAGE 2 — HEADLINE & ABOUT
-    doc.addPage(); y = M;
-    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
-    doc.text('OPTIMIZED HEADLINE & ABOUT SECTION', M, 10); y = 22;
+    // What this report covers box
+    const coverY = 134 + sumH + 10;
+    doc.setFillColor(240,253,244); doc.setDrawColor(187,247,208); doc.setLineWidth(0.3);
+    doc.roundedRect(ML, coverY, cW, 42, 3, 3, 'FD');
+    doc.setTextColor(22,163,74); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('WHAT THIS REPORT COVERS', ML+5, coverY+8);
+    doc.setTextColor(21,128,61); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+    ['Headline — quality, keywords, formula, and full optimized rewrite',
+      'About Section — hook, buyer focus, keyword density, CTA, and full rewrite',
+      'Experience — action verbs, metrics, impact statements, per-role rewrites',
+      'Skills — strategic recommendations based on your industry and goal',
+      'Keywords — high-value terms to add and weak terms to remove',
+    ].forEach((t, i) => {
+      doc.setTextColor(22,163,74); doc.text('✓', ML+5, coverY+16+i*5.5);
+      doc.setTextColor(21,128,61); doc.text(t, ML+11, coverY+16+i*5.5);
+    });
 
-    // Headline
+    // What requires manual check box
+    const manualY = coverY + 50;
+    doc.setFillColor(254,252,232); doc.setDrawColor(253,230,138); doc.setLineWidth(0.3);
+    doc.roundedRect(ML, manualY, cW, 36, 3, 3, 'FD');
+    doc.setTextColor(202,138,4); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('REQUIRES MANUAL VERIFICATION (Cannot be analyzed from text)', ML+5, manualY+8);
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+    ['Profile photo, background banner, and custom URL — visual elements not accessible from text input',
+      'Connection count, recommendations, Creator Mode, and Featured section',
+      'Open to Work vs Providing Services setting — check your profile settings',
+      'All items above are flagged as WARN in Section 4 with exact fix instructions',
+    ].forEach((t, i) => {
+      doc.setTextColor(202,138,4); doc.text('!', ML+5, manualY+16+i*5.5);
+      doc.setTextColor(161,98,7); doc.text(t, ML+11, manualY+16+i*5.5);
+    });
+
+    // ═══════════════════════════════════════
+    // PAGE 2 — OPTIMIZED HEADLINE & ABOUT
+    // ═══════════════════════════════════════
+    doc.addPage(); y = 20;
+    doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F');
+    doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F');
+
+    sectionHeader('SECTION 1 — OPTIMIZED HEADLINE', `Score: ${profileResult.headlineScore}/100`);
+
+    // Current headline
+    cy(28);
+    doc.setFillColor(254,242,242); doc.setDrawColor(254,202,202); doc.setLineWidth(0.3);
+    doc.roundedRect(ML, y, cW, 20, 3, 3, 'FD');
+    doc.setTextColor(220,38,38); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('CURRENT HEADLINE', ML+5, y+7);
+    doc.setTextColor(127,29,29); doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    wrap(headline || 'Not provided', cW-10, 8.5).slice(0,2).forEach((l:string,i:number) => doc.text(l, ML+5, y+14+i*5));
+    y += 26;
+
+    // Arrow
+    doc.setTextColor(100,116,139); doc.setFontSize(12);
+    doc.text('↓  Optimized to:', ML, y+6);
+    y += 10;
+
+    // Optimized headline
+    cy(28);
+    doc.setFillColor(240,253,244); doc.setDrawColor(187,247,208); doc.setLineWidth(0.3);
+    doc.roundedRect(ML, y, cW, 22, 3, 3, 'FD');
+    doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('OPTIMIZED HEADLINE — COPY & PASTE THIS', ML+5, y+7);
+    doc.setTextColor(20,83,45); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    wrap(profileResult.optimizedHeadline, cW-10, 9).slice(0,2).forEach((l:string,i:number) => doc.text(l, ML+5, y+14+i*5.5));
+    y += 28;
+
+    // Headline tips
+    cy(10);
+    doc.setTextColor(100,116,139); doc.setFontSize(7.5); doc.setFont('helvetica','italic');
+    doc.text('Tip: LinkedIn allows 220 characters. Include your primary skill, a specific outcome, and a trust signal.', ML, y+5);
+    y += 12;
+
+    // About section header
+    sectionHeader('SECTION 2 — OPTIMIZED ABOUT SECTION', `Score: ${profileResult.aboutScore}/100`);
+
+    // About explanation
+    cy(12);
+    doc.setFillColor(239,246,255); doc.roundedRect(ML, y, cW, 10, 2, 2, 'F');
+    doc.setTextColor(30,64,175); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+    doc.text('The first 3 lines appear before "See more". They must hook the reader immediately. Copy the full text below into your About section.', ML+5, y+7, { maxWidth: cW-10 });
+    y += 14;
+
+    // Optimized about — full text, paginated
+    const aboutLines = wrap(profileResult.optimizedAbout, cW-10, 8);
+    const aboutBoxH = Math.min(aboutLines.length * 5 + 14, H - y - 22);
     cy(30);
-    doc.setFillColor(240,245,255); doc.roundedRect(M, y, cW, 24, 3, 3, 'F');
-    doc.setFillColor(0,100,255); doc.rect(M, y, 3, 24, 'F');
-    doc.setTextColor(30,50,100); doc.setFontSize(8); doc.setFont('helvetica','bold');
-    doc.text('OPTIMIZED HEADLINE', M+7, y+8);
-    doc.setFont('helvetica','normal'); doc.setFontSize(9);
-    wrap(profileResult.optimizedHeadline, cW-16, 9).slice(0,2).forEach((l:string,i:number) => doc.text(l, M+7, y+16+i*5));
-    y += 30;
-
-    // About
-    const aboutLines = wrap(profileResult.optimizedAbout, cW-16, 8);
-    const aboutH = Math.min(aboutLines.length * 5 + 20, 180);
-    cy(aboutH);
-    doc.setFillColor(240,245,255); doc.roundedRect(M, y, cW, aboutH, 3, 3, 'F');
-    doc.setFillColor(0,100,255); doc.rect(M, y, 3, aboutH, 'F');
-    doc.setTextColor(30,50,100); doc.setFontSize(8); doc.setFont('helvetica','bold');
-    doc.text('OPTIMIZED ABOUT SECTION', M+7, y+8);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8);
-    let ay = y + 16;
+    doc.setFillColor(250,251,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+    doc.roundedRect(ML, y, cW, aboutBoxH, 3, 3, 'FD');
+    doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('OPTIMIZED ABOUT SECTION — COPY & PASTE THIS', ML+5, y+7);
+    doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    let ay = y + 13;
     for (const l of aboutLines) {
-      if (ay + 5 > y + aboutH - 4) break;
-      doc.text(l, M+7, ay); ay += 5;
+      if (ay + 5 > y + aboutBoxH - 3) {
+        // continue on next page
+        y = ay + 4;
+        cy(40);
+        const remLines = aboutLines.slice(aboutLines.indexOf(l));
+        const remH = Math.min(remLines.length * 5 + 14, H - y - 22);
+        doc.setFillColor(250,251,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+        doc.roundedRect(ML, y, cW, remH, 3, 3, 'FD');
+        doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
+        doc.text('OPTIMIZED ABOUT (CONTINUED)', ML+5, y+7);
+        doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        ay = y + 13;
+        remLines.forEach((rl: string) => { doc.text(rl, ML+5, ay); ay += 5; });
+        y = ay + 8;
+        break;
+      }
+      doc.text(l, ML+5, ay); ay += 5;
     }
-    y += aboutH + 6;
+    y = ay + 8;
 
-    // PAGE 3 — EXPERIENCE & SKILLS
-    doc.addPage(); y = M;
-    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
-    doc.text('EXPERIENCE & SKILLS', M, 10); y = 22;
+    // ═══════════════════════════════════════
+    // PAGE 3 — EXPERIENCE REWRITES
+    // ═══════════════════════════════════════
+    doc.addPage(); y = 20;
+    doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F');
+    doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F');
+
+    sectionHeader('SECTION 3 — OPTIMIZED EXPERIENCE BULLETS', `Score: ${profileResult.experienceScore}/100`);
+
+    cy(10);
+    doc.setFillColor(239,246,255); doc.roundedRect(ML, y, cW, 9, 2, 2, 'F');
+    doc.setTextColor(30,64,175); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+    doc.text('Add these as bullet points under each role. Start every bullet with an action verb and include a result or number.', ML+5, y+6, { maxWidth: cW-10 });
+    y += 13;
 
     profileResult.optimizedExperience?.forEach((exp: string, i: number) => {
-      const lines = wrap(exp, cW-16, 8);
-      const bh = Math.max(20, lines.length*5+14);
-      cy(bh+4);
-      doc.setFillColor(240,245,255); doc.roundedRect(M, y, cW, bh, 3, 3, 'F');
-      doc.setFillColor(0,100,255); doc.rect(M, y, 3, bh, 'F');
-      doc.setTextColor(30,50,100); doc.setFontSize(8); doc.setFont('helvetica','bold');
-      doc.text(`ROLE ${i+1}`, M+7, y+8);
-      doc.setFont('helvetica','normal');
-      lines.forEach((l:string,j:number) => doc.text(l, M+7, y+15+j*5));
-      y += bh+6;
+      const lines = wrap(exp, cW-14, 8);
+      const bh = Math.max(16, lines.length * 5 + 10);
+      cy(bh + 4);
+      doc.setFillColor(248,250,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+      doc.roundedRect(ML, y, cW, bh, 2, 2, 'FD');
+      // Number badge
+      const numCol = scoreColor(75);
+      doc.setFillColor(...numCol); doc.circle(ML+5, y+bh/2, 3.5, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text(String(i+1), ML+5, y+bh/2+2.5, { align:'center' });
+      doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+      lines.forEach((l: string, j: number) => doc.text(l, ML+12, y+9+j*5));
+      y += bh + 4;
     });
 
-    cy(14); doc.setFillColor(0,180,120); doc.rect(0,y,W,10,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
-    doc.text('RECOMMENDED SKILLS', M, y+7); y += 16;
-    const skillsPerRow = 4; const skillW = (cW-12)/skillsPerRow;
-    profileResult.optimizedSkills?.forEach((s: string, i: number) => {
-      const col = i % skillsPerRow; const row = Math.floor(i/skillsPerRow);
-      if (col === 0 && row > 0) { cy(12); }
-      const sx2 = M + col*(skillW+4);
-      const sy = y + Math.floor(i/skillsPerRow)*12;
-      if (sy + 10 < H - M) {
-        doc.setFillColor(230,240,255); doc.roundedRect(sx2, sy, skillW, 9, 2, 2, 'F');
-        doc.setTextColor(0,60,180); doc.setFontSize(7); doc.setFont('helvetica','normal');
-        doc.text(cl(s), sx2+skillW/2, sy+6, { align:'center', maxWidth: skillW-4 });
-      }
+    // Skills section
+    cy(16);
+    sectionHeader('SECTION 4 — RECOMMENDED SKILLS', `${profileResult.optimizedSkills?.length || 0} skills`);
+
+    cy(10);
+    doc.setFillColor(239,246,255); doc.roundedRect(ML, y, cW, 9, 2, 2, 'F');
+    doc.setTextColor(30,64,175); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+    doc.text('Add these in your Skills section. LinkedIn allows 50 — the more relevant skills, the higher you rank in searches.', ML+5, y+6, { maxWidth: cW-10 });
+    y += 13;
+
+    const skillCols = 4; const skillW2 = (cW - (skillCols-1)*3) / skillCols;
+    let skillRow = 0, skillCol = 0;
+    profileResult.optimizedSkills?.forEach((s: string) => {
+      const sx2 = ML + skillCol * (skillW2 + 3);
+      const sy2 = y + skillRow * 10;
+      if (sy2 + 9 > H - 20) { doc.addPage(); doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F'); doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F'); y = 20; skillRow = 0; }
+      const finalSy = y + skillRow * 10;
+      doc.setFillColor(239,246,255); doc.roundedRect(sx2, finalSy, skillW2, 7, 1, 1, 'F');
+      doc.setDrawColor(147,197,253); doc.setLineWidth(0.3); doc.roundedRect(sx2, finalSy, skillW2, 7, 1, 1, 'S');
+      doc.setTextColor(30,64,175); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+      doc.text(cl(s), sx2 + skillW2/2, finalSy+5, { align:'center', maxWidth: skillW2-2 });
+      skillCol++;
+      if (skillCol >= skillCols) { skillCol = 0; skillRow++; }
     });
-    y += (Math.ceil((profileResult.optimizedSkills?.length||0)/skillsPerRow))*12+6;
+    y += (skillRow + (skillCol > 0 ? 1 : 0)) * 10 + 6;
 
-    // PAGE 4 — KEYWORDS & PROFILE CHECKS
-    doc.addPage(); y = M;
-    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
-    doc.text('KEYWORDS & PROFILE CHECKS', M, 10); y = 22;
+    // Keywords
+    cy(16);
+    sectionHeader('SECTION 5 — KEYWORDS');
 
-    // Keywords side by side
-    const hw = (cW-8)/2;
-    doc.setFillColor(230,255,245); doc.roundedRect(M, y, hw, 8, 2, 2, 'F');
-    doc.setTextColor(0,120,80); doc.setFontSize(8); doc.setFont('helvetica','bold');
-    doc.text('KEYWORDS TO ADD', M+4, y+6);
-    doc.setFillColor(255,235,235); doc.roundedRect(M+hw+8, y, hw, 8, 2, 2, 'F');
-    doc.setTextColor(160,0,0); doc.text('KEYWORDS TO REMOVE', M+hw+12, y+6);
+    const kwHalf = (cW - 6) / 2;
+    // Add keywords
+    cy(10);
+    doc.setFillColor(240,253,244); doc.setDrawColor(187,247,208); doc.setLineWidth(0.3);
+    const addH = (profileResult.keywordsToAdd?.length || 0) * 7 + 14;
+    doc.roundedRect(ML, y, kwHalf, addH, 2, 2, 'FD');
+    doc.setTextColor(22,163,74); doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+    doc.text('ADD THESE KEYWORDS', ML+4, y+8);
+    doc.setFont('helvetica','normal');
+    profileResult.keywordsToAdd?.forEach((k: string, i: number) => {
+      doc.setTextColor(22,163,74); doc.text('+', ML+4, y+15+i*7);
+      doc.setTextColor(21,128,61); doc.text(cl(k), ML+9, y+15+i*7);
+    });
+    // Remove keywords
+    const rmH = (profileResult.keywordsToRemove?.length || 0) * 7 + 14;
+    doc.setFillColor(254,242,242); doc.setDrawColor(254,202,202);
+    doc.roundedRect(ML+kwHalf+6, y, kwHalf, rmH, 2, 2, 'FD');
+    doc.setTextColor(220,38,38); doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+    doc.text('REMOVE / REPLACE THESE', ML+kwHalf+10, y+8);
+    doc.setFont('helvetica','normal');
+    profileResult.keywordsToRemove?.forEach((k: string, i: number) => {
+      doc.setTextColor(220,38,38); doc.text('-', ML+kwHalf+10, y+15+i*7);
+      doc.setTextColor(153,27,27); doc.text(cl(k), ML+kwHalf+15, y+15+i*7);
+    });
+    y += Math.max(addH, rmH) + 8;
+
+    // ═══════════════════════════════════════
+    // PAGE 4+ — PROFILE CHECKS
+    // ═══════════════════════════════════════
+    cy(20);
+    sectionHeader('SECTION 6 — PROFILE CHECKS');
+
+    // Legend
+    cy(10);
+    doc.setFontSize(7); doc.setFont('helvetica','normal');
+    [['FAIL', [220,38,38]], ['WARN', [202,138,4]], ['PASS', [22,163,74]]].forEach(([label, col]: any, i: number) => {
+      doc.setFillColor(...col); doc.roundedRect(ML + i*28, y, 24, 6, 1, 1, 'F');
+      doc.setTextColor(255,255,255); doc.text(label, ML+12+i*28, y+4.5, { align:'center' });
+    });
+    doc.setTextColor(100,116,139); doc.setFontSize(7);
+    doc.text('FAIL = problem found in your text   WARN = cannot verify from text — check manually   PASS = looks good', ML+90, y+4.5);
     y += 12;
-    const maxKw = Math.max(profileResult.keywordsToAdd?.length||0, profileResult.keywordsToRemove?.length||0);
-    for (let i=0; i<maxKw; i++) {
-      cy(7);
-      if (profileResult.keywordsToAdd?.[i]) {
-        doc.setTextColor(0,120,80); doc.setFontSize(8); doc.setFont('helvetica','normal');
-        doc.text(`+ ${cl(profileResult.keywordsToAdd[i])}`, M+4, y+5);
-      }
-      if (profileResult.keywordsToRemove?.[i]) {
-        doc.setTextColor(160,0,0);
-        doc.text(`- ${cl(profileResult.keywordsToRemove[i])}`, M+hw+12, y+5);
-      }
-      y += 7;
-    }
-    y += 6;
 
-    // Profile checks
-    const statusC = (s:string): [number,number,number] => s==='pass'?[0,150,80]:s==='warn'?[180,120,0]:[180,0,0];
     profileResult.profileChecks?.forEach((c: {section:string,status:string,issue:string,fix:string}) => {
       const issueL = wrap(c.issue, cW-36, 7.5);
-      const fixL = wrap('Fix: '+c.fix, cW-36, 7.5);
-      const bh = Math.max(18, issueL.length*5+fixL.length*5+14);
-      cy(bh+4);
-      doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, bh, 3, 3, 'F');
-      doc.setFillColor(...statusC(c.status)); doc.rect(M, y, 3, bh, 'F');
-      doc.setTextColor(...statusC(c.status)); doc.setFontSize(7.5); doc.setFont('helvetica','bold');
-      doc.text(c.status.toUpperCase(), M+7, y+8);
-      doc.setTextColor(30,50,80); doc.setFontSize(9);
-      doc.text(cl(c.section), M+28, y+8);
-      doc.setTextColor(80,80,80); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-      issueL.forEach((l:string,i:number) => doc.text(l, M+7, y+15+i*5));
-      let fy = y+15+issueL.length*5+2;
-      doc.setTextColor(0,120,60);
-      fixL.forEach((l:string,i:number) => doc.text(l, M+7, fy+i*5));
-      y += bh+5;
+      const fixL = wrap('How to fix: ' + c.fix, cW-36, 7.5);
+      const bh = Math.max(22, issueL.length*5 + fixL.length*5 + 16);
+      cy(bh + 4);
+      const bgCol = statusBg(c.status);
+      doc.setFillColor(...bgCol); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+      doc.roundedRect(ML, y, cW, bh, 3, 3, 'FD');
+      // Status badge
+      const stCol = statusColor(c.status);
+      doc.setFillColor(...stCol); doc.roundedRect(ML+4, y+4, 18, 6, 2, 2, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+      doc.text(c.status.toUpperCase(), ML+13, y+8.5, { align:'center' });
+      // Section name
+      doc.setTextColor(15,23,42); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(cl(c.section), ML+26, y+9);
+      // Issue
+      doc.setTextColor(71,85,105); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      issueL.forEach((l:string,i:number) => doc.text(l, ML+6, y+17+i*5));
+      // Fix
+      let fy = y+17+issueL.length*5+2;
+      doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text('FIX:', ML+6, fy);
+      doc.setTextColor(21,128,61); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      fixL.slice(1).forEach((l:string,i:number) => doc.text(l, ML+6, fy+5+i*5));
+      const fixFirstLine = wrap(c.fix, cW-44, 7.5);
+      doc.text(fixFirstLine[0] || '', ML+16, fy);
+      y += bh + 5;
     });
 
-    // PAGE 5 — TIPS & ACTIONS
-    doc.addPage(); y = M;
-    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
-    doc.text('TIPS & ACTION PLAN', M, 10); y = 22;
+    // ═══════════════════════════════════════
+    // TIPS & ACTION PLAN
+    // ═══════════════════════════════════════
+    cy(20);
+    sectionHeader('SECTION 7 — VISIBILITY & CONNECTION TIPS');
 
-    const drawTips = (title: string, tips: string[], color: [number,number,number]) => {
-      cy(12); doc.setFillColor(...color); doc.rect(0,y,W,10,'F');
-      doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
-      doc.text(title, M, y+7); y += 14;
+    const drawTipList = (tips: string[], color: [number,number,number]) => {
       tips?.forEach((t: string) => {
         const lines = wrap(t, cW-16, 8);
-        const bh = Math.max(14, lines.length*5+8);
-        cy(bh+3);
-        doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, bh, 2, 2, 'F');
-        doc.setTextColor(...color); doc.setFontSize(10); doc.text('>', M+5, y+bh/2+3);
-        doc.setTextColor(50,60,80); doc.setFontSize(8); doc.setFont('helvetica','normal');
-        lines.forEach((l:string,i:number) => doc.text(l, M+14, y+8+i*5));
-        y += bh+4;
+        const bh = Math.max(14, lines.length * 5 + 8);
+        cy(bh + 3);
+        doc.setFillColor(248,250,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.2);
+        doc.roundedRect(ML, y, cW, bh, 2, 2, 'FD');
+        doc.setFillColor(...color); doc.circle(ML+6, y+bh/2, 2, 'F');
+        doc.setTextColor(30,41,59); doc.setFontSize(8); doc.setFont('helvetica','normal');
+        lines.forEach((l:string,i:number) => doc.text(l, ML+12, y+8+i*5));
+        y += bh + 3;
       });
-      y += 4;
     };
 
-    drawTips('VISIBILITY TIPS', profileResult.visibilityTips, [0,100,255]);
-    drawTips('CONNECTION GROWTH TIPS', profileResult.connectionTips, [0,150,100]);
+    cy(10);
+    doc.setTextColor(30,64,175); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('Visibility Tips', ML, y+5); y += 8;
+    drawTipList(profileResult.visibilityTips, [30,64,175]);
+    cy(8);
+    doc.setTextColor(22,163,74); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('Connection Growth Tips', ML, y+5); y += 8;
+    drawTipList(profileResult.connectionTips, [22,163,74]);
 
-    // Action plan
-    cy(12); doc.setFillColor(20,29,46); doc.rect(0,y,W,10,'F');
-    doc.setTextColor(0,180,120); doc.setFontSize(9); doc.setFont('helvetica','bold');
-    doc.text('ACTION PLAN', M, y+7); y += 14;
+    cy(20);
+    sectionHeader('SECTION 8 — ACTION PLAN');
+
     [
-      {label:'DO TODAY', items:profileResult.nextActions?.today, color:[220,50,50] as [number,number,number]},
-      {label:'THIS WEEK', items:profileResult.nextActions?.thisWeek, color:[180,120,0] as [number,number,number]},
-      {label:'THIS MONTH', items:profileResult.nextActions?.thisMonth, color:[0,140,80] as [number,number,number]},
-    ].forEach((g: {label:string, items:string[]|undefined, color:[number,number,number]}) => {
-      cy(10); doc.setTextColor(...g.color); doc.setFontSize(9); doc.setFont('helvetica','bold');
-      doc.text(g.label, M, y+6); y += 10;
+      {label:'DO TODAY', items:profileResult.nextActions?.today, color:[220,38,38] as [number,number,number], bg:[254,242,242] as [number,number,number]},
+      {label:'THIS WEEK', items:profileResult.nextActions?.thisWeek, color:[202,138,4] as [number,number,number], bg:[254,252,232] as [number,number,number]},
+      {label:'THIS MONTH', items:profileResult.nextActions?.thisMonth, color:[22,163,74] as [number,number,number], bg:[240,253,244] as [number,number,number]},
+    ].forEach((g: {label:string,items:string[]|undefined,color:[number,number,number],bg:[number,number,number]}) => {
+      cy(12);
+      doc.setFillColor(...g.color); doc.roundedRect(ML, y, 28, 7, 2, 2, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+      doc.text(g.label, ML+14, y+5.5, { align:'center' });
+      y += 10;
       g.items?.forEach((a: string) => {
         const lines = wrap(a, cW-14, 8);
-        const bh = Math.max(12, lines.length*5+6);
+        const bh = Math.max(14, lines.length*5+8);
         cy(bh+3);
-        doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, bh, 2, 2, 'F');
-        doc.setTextColor(...g.color); doc.setFontSize(9); doc.text('•', M+5, y+bh/2+3);
-        doc.setTextColor(50,60,80); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-        lines.forEach((l:string,i:number) => doc.text(l, M+12, y+7+i*5));
-        y += bh+4;
+        doc.setFillColor(...g.bg); doc.setDrawColor(226,232,240); doc.setLineWidth(0.2);
+        doc.roundedRect(ML, y, cW, bh, 2, 2, 'FD');
+        doc.setFillColor(...g.color); doc.circle(ML+6, y+bh/2, 2, 'F');
+        doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        lines.forEach((l:string,i:number) => doc.text(l, ML+12, y+8+i*5));
+        y += bh+3;
       });
-      y += 4;
+      y += 5;
     });
 
-    // Footers
+    // Final page — closing note
+    cy(30);
+    doc.setFillColor(30,64,175); doc.roundedRect(ML, y, cW, 28, 4, 4, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text('Your profile is ready to be transformed.', ML+cW/2, y+11, { align:'center' });
+    doc.setFontSize(8); doc.setFont('helvetica','normal');
+    doc.text('Apply the rewrites above, check the manual verification items, and execute your action plan.', ML+cW/2, y+18, { align:'center' });
+    doc.text('Questions? Visit linkedin-optimizer.vercel.app', ML+cW/2, y+24, { align:'center' });
+
+    // All footers
     const total = doc.getNumberOfPages();
     for (let p = 1; p <= total; p++) footer(p, total);
     doc.save('linkedin-optimization-report.pdf');
