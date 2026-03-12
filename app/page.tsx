@@ -28,11 +28,20 @@ ABOUT SECTION (max 2600 chars):
 EXPERIENCE:
 - Each role description should start with an action verb
 - Focus on results and impact, not just responsibilities
-- Use numbers wherever possible
+- NEVER invent numbers or metrics the user did not provide
+- If no metrics are given, use placeholders in square brackets: [X clients], [X% improvement], [X projects completed]
+- The user will fill in their real numbers — do NOT make them up
+- Example with placeholder: "Delivered [X] custom web projects on time and within budget, achieving [X%] client satisfaction"
 
 SKILLS:
 - LinkedIn allows 50 skills — recommend the most strategic ones
 - Mix broad skills with specific ones
+
+ABOUT SECTION REWRITING RULES:
+- NEVER invent specific numbers, client counts, or percentages the user did not mention
+- If no metrics provided, use placeholders: [X years], [X clients], [X% result]
+- Base the rewrite strictly on what the user actually told you
+- Make it buyer-focused and keyword-rich but factually honest
 
 SCORING RULES — Be fair and accurate:
 - Only penalize for problems visible in the provided text
@@ -260,20 +269,11 @@ Return this exact JSON:
     if (!(window as any).jspdf) {
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
-        s.onload = () => resolve();
-        s.onerror = () => {
-          // fallback to cdnjs
-          const s2 = document.createElement('script');
-          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-          s2.onload = () => resolve();
-          s2.onerror = () => reject(new Error('Failed to load PDF library. Check your internet connection.'));
-          document.head.appendChild(s2);
-        };
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => resolve(); s.onerror = reject;
         document.head.appendChild(s);
       });
     }
-    if (!(window as any).jspdf) throw new Error('PDF library not available');
     const { jsPDF } = (window as any).jspdf;
     const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = 210, H = 297, ML = 18, MR = 18, cW = W - ML - MR;
@@ -283,10 +283,16 @@ Return this exact JSON:
     function np() { doc.addPage(); y = 20; }
     function cy(n: number) { if (y + n > H - 18) np(); }
     function cl(t: string) {
-      return (t || '').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
+      return (t || '')
+          .replace(/\*\*([^*]+)\*\*/g,'$1')
+          .replace(/\*([^*]+)\*/g,'$1')
+          .replace(/\*/g,'')
+          .replace(/✓/g,'+').replace(/✗/g,'x').replace(/→/g,'>').replace(/←/g,'<')
           .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
           .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
-          .replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim();
+          .replace(/[^\x20-\x7E\xA0-\xFF]/g,' ')
+          .replace(/  +/g,' ')
+          .trim();
     }
     function wrap(t: string, w: number, fs: number) { doc.setFontSize(fs); return doc.splitTextToSize(cl(t), w); }
     function scoreColor(s: number): [number,number,number] { return s >= 80 ? [22,163,74] : s >= 60 ? [202,138,4] : [220,38,38]; }
@@ -350,7 +356,7 @@ Return this exact JSON:
     doc.text('Optimization Report', ML, 63);
     doc.setFillColor(30,64,175); doc.rect(ML, 68, 40, 2, 'F');
     doc.setTextColor(100,116,139); doc.setFontSize(9); doc.setFont('helvetica','normal');
-    doc.text('Powered by LinkedPro AI Engine', ML, 76);
+    doc.text('Powered by LinkedPro', ML, 76);
     doc.text(new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}), ML, 83);
 
     // Overall score — big circle area
@@ -400,8 +406,11 @@ Return this exact JSON:
       'Skills — strategic recommendations based on your industry and goal',
       'Keywords — high-value terms to add and weak terms to remove',
     ].forEach((t, i) => {
-      doc.setTextColor(22,163,74); doc.text('✓', ML+5, coverY+16+i*5.5);
-      doc.setTextColor(21,128,61); doc.text(t, ML+11, coverY+16+i*5.5);
+      doc.setFillColor(22,163,74); doc.circle(ML+6, coverY+14+i*5.5, 2, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(6); doc.setFont('helvetica','bold');
+      doc.text('+', ML+6, coverY+15.5+i*5.5, { align:'center' });
+      doc.setTextColor(21,128,61); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+      doc.text(t, ML+11, coverY+16+i*5.5);
     });
 
     // What requires manual check box
@@ -470,36 +479,29 @@ Return this exact JSON:
     doc.text('The first 3 lines appear before "See more". They must hook the reader immediately. Copy the full text below into your About section.', ML+5, y+7, { maxWidth: cW-10 });
     y += 14;
 
-    // Optimized about — full text, paginated
+    // Optimized about — full text, properly paginated
     const aboutLines = wrap(profileResult.optimizedAbout, cW-10, 8);
-    const aboutBoxH = Math.min(aboutLines.length * 5 + 14, H - y - 22);
-    cy(30);
-    doc.setFillColor(250,251,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
-    doc.roundedRect(ML, y, cW, aboutBoxH, 3, 3, 'FD');
-    doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
-    doc.text('OPTIMIZED ABOUT SECTION — COPY & PASTE THIS', ML+5, y+7);
-    doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-    let ay = y + 13;
-    for (const l of aboutLines) {
-      if (ay + 5 > y + aboutBoxH - 3) {
-        // continue on next page
-        y = ay + 4;
-        cy(40);
-        const remLines = aboutLines.slice(aboutLines.indexOf(l));
-        const remH = Math.min(remLines.length * 5 + 14, H - y - 22);
-        doc.setFillColor(250,251,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
-        doc.roundedRect(ML, y, cW, remH, 3, 3, 'FD');
-        doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
-        doc.text('OPTIMIZED ABOUT (CONTINUED)', ML+5, y+7);
-        doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-        ay = y + 13;
-        remLines.forEach((rl: string) => { doc.text(rl, ML+5, ay); ay += 5; });
-        y = ay + 8;
-        break;
-      }
-      doc.text(l, ML+5, ay); ay += 5;
+    let aboutLineIdx = 0;
+    let isFirstAboutBox = true;
+
+    while (aboutLineIdx < aboutLines.length) {
+      cy(30);
+      const availH = H - y - 22;
+      const linesPerBox = Math.floor((availH - 14) / 5);
+      const chunkLines = aboutLines.slice(aboutLineIdx, aboutLineIdx + linesPerBox);
+      const boxH = chunkLines.length * 5 + 14;
+
+      doc.setFillColor(250,251,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+      doc.roundedRect(ML, y, cW, boxH, 3, 3, 'FD');
+      doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text(isFirstAboutBox ? 'OPTIMIZED ABOUT SECTION — COPY & PASTE THIS' : 'OPTIMIZED ABOUT (CONTINUED)', ML+5, y+7);
+      doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+      chunkLines.forEach((l: string, idx: number) => doc.text(l, ML+5, y+13+idx*5));
+      y += boxH + 6;
+      aboutLineIdx += linesPerBox;
+      isFirstAboutBox = false;
+      if (aboutLineIdx < aboutLines.length) { doc.addPage(); y = 20; doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F'); doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F'); }
     }
-    y = ay + 8;
 
     // ═══════════════════════════════════════
     // PAGE 3 — EXPERIENCE REWRITES
@@ -606,9 +608,9 @@ Return this exact JSON:
     y += 12;
 
     profileResult.profileChecks?.forEach((c: {section:string,status:string,issue:string,fix:string}) => {
-      const issueL = wrap(c.issue, cW-36, 7.5);
-      const fixL = wrap('How to fix: ' + c.fix, cW-36, 7.5);
-      const bh = Math.max(22, issueL.length*5 + fixL.length*5 + 16);
+      const issueL = wrap(c.issue, cW-30, 7.5);
+      const fixL = wrap(c.fix, cW-30, 7.5);
+      const bh = Math.max(26, issueL.length*5 + fixL.length*5 + 22);
       cy(bh + 4);
       const bgCol = statusBg(c.status);
       doc.setFillColor(...bgCol); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
@@ -621,17 +623,16 @@ Return this exact JSON:
       // Section name
       doc.setTextColor(15,23,42); doc.setFontSize(9); doc.setFont('helvetica','bold');
       doc.text(cl(c.section), ML+26, y+9);
-      // Issue
+      // Issue text
       doc.setTextColor(71,85,105); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
       issueL.forEach((l:string,i:number) => doc.text(l, ML+6, y+17+i*5));
-      // Fix
-      let fy = y+17+issueL.length*5+2;
-      doc.setTextColor(22,163,74); doc.setFontSize(7); doc.setFont('helvetica','bold');
-      doc.text('FIX:', ML+6, fy);
+      // Fix label + text
+      const fy = y + 17 + issueL.length*5 + 3;
+      doc.setFillColor(22,163,74); doc.roundedRect(ML+6, fy-4, 10, 5, 1, 1, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(6); doc.setFont('helvetica','bold');
+      doc.text('FIX', ML+11, fy, { align:'center' });
       doc.setTextColor(21,128,61); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-      fixL.slice(1).forEach((l:string,i:number) => doc.text(l, ML+6, fy+5+i*5));
-      const fixFirstLine = wrap(c.fix, cW-44, 7.5);
-      doc.text(fixFirstLine[0] || '', ML+16, fy);
+      fixL.forEach((l:string,i:number) => doc.text(l, ML+20, fy+i*5));
       y += bh + 5;
     });
 
@@ -711,19 +712,12 @@ Return this exact JSON:
     if (!(window as any).jspdf) {
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
-        s.onload = () => resolve();
-        s.onerror = () => {
-          const s2 = document.createElement('script');
-          s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-          s2.onload = () => resolve();
-          s2.onerror = () => reject(new Error('Failed to load PDF library. Check your internet connection.'));
-          document.head.appendChild(s2);
-        };
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => resolve(); s.onerror = reject;
         document.head.appendChild(s);
       });
     }
-    if (!(window as any).jspdf) throw new Error('PDF library not available');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { jsPDF } = (window as any).jspdf;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
