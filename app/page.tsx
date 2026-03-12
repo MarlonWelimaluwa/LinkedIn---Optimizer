@@ -1,6 +1,56 @@
 'use client';
 import { useState } from 'react';
 
+const SYSTEM_PROFILE = `You are the "LinkedPro AI Engine" — the world's #1 LinkedIn profile optimization specialist.
+
+LINKEDIN 2026 ALGORITHM RULES YOU MUST APPLY:
+
+HEADLINE (max 220 chars):
+- Most important field for LinkedIn search ranking
+- Must contain primary skill keyword + outcome/specialization + industry signal
+- NEVER use: "passionate", "hardworking", "dedicated", "guru", "ninja", "seeking opportunities"
+- Formula: [Primary Skill] + [Specific Outcome or Niche] | [Secondary Skill] | [Trust Signal]
+
+ABOUT SECTION (max 2600 chars):
+- First 3 lines shown before "see more" — these determine if anyone reads on
+- NEVER start with "I am" or "My name is" or "I have X years"
+- Open with the CLIENT'S pain point or a bold statement about results
+- Structure: Hook → Your Solution → Proof/Results → Skills → CTA with contact info
+- End with a clear CTA: "Send me a message" or "Connect with me"
+
+EXPERIENCE:
+- Each role description should start with an action verb
+- Focus on results and impact, not just responsibilities
+- Use numbers wherever possible
+
+SKILLS:
+- LinkedIn allows 50 skills — recommend the most strategic ones
+- Mix broad skills with specific ones
+- Include skills buyers search for
+
+PROFILE COMPLETENESS:
+- Profile photo: Professional headshot — increases profile views by 21x
+- Background banner: Custom branded image
+- Custom URL: linkedin.com/in/yourname
+- Creator Mode, Open to Work/Services, Featured Section, Recommendations
+
+Give specific copy-paste ready rewrites. Score every section. Be brutally honest.
+OUTPUT: ONLY valid JSON. No markdown. No explanation. No text before or after.`;
+
+const SYSTEM_POSTS = `You are the "LinkedPro AI Engine" — a world-class LinkedIn content strategist and viral post writer.
+
+LINKEDIN VIRAL POST RULES (2026):
+- Posts that get comments in first 60 minutes get priority
+- First line must create curiosity or value promise WITHOUT clicking "see more"
+- Optimal length: 1200-1900 characters
+- Hashtags: 3-5 maximum at the END
+- No links in post body — put in first comment
+- Ask ONE specific question at the end
+
+THE 5 POST FORMATS: Hook Story, Listicle, Personal Story, Controversial Opinion, Value/Tips.
+Write posts that feel human, authentic, and specific to this person's story.
+OUTPUT: ONLY valid JSON. No markdown. No explanation. No text before or after.`;
+
 type Tool = 'home' | 'profile' | 'posts';
 type ProfileResult = {
   overallScore: number;
@@ -38,7 +88,11 @@ type PostResult = {
 export default function Home() {
   const [tool, setTool] = useState<Tool>('home');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState('');
+
+  const profileSteps = ['Reading your profile...', 'Scoring each section...', 'Writing optimized content...', 'Generating keywords & tips...', 'Building your report...'];
+  const postSteps = ['Analyzing your topic...', 'Crafting Hook Story post...', 'Writing Listicle & Story posts...', 'Generating Opinion & Tips posts...', 'Finalizing your content...'];
   const [profileResult, setProfileResult] = useState<ProfileResult | null>(null);
   const [postResult, setPostResult] = useState<PostResult | null>(null);
 
@@ -58,37 +112,132 @@ export default function Home() {
 
   async function runProfileOptimizer() {
     if (!headline && !about) { setError('Please fill in at least your headline and about section.'); return; }
-    setLoading(true); setError(''); setProfileResult(null);
+    setLoading(true); setError(''); setProfileResult(null); setLoadingStep(0);
+    const stepInterval = setInterval(() => setLoadingStep(s => Math.min(s + 1, profileSteps.length - 1)), 2500);
     try {
-      const res = await fetch('/api/linkedin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'profile', headline, about, experience, skills, education, goal }),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error);
-      setProfileResult(data.data);
+      const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+      if (!GEMINI_KEY) throw new Error('Gemini API key not configured');
+      const userPrompt = `Optimize this LinkedIn profile for goal: ${goal}
+
+CURRENT HEADLINE: ${headline || 'not provided'}
+CURRENT ABOUT: ${about || 'not provided'}
+CURRENT EXPERIENCE: ${experience || 'not provided'}
+CURRENT SKILLS: ${skills || 'not provided'}
+EDUCATION: ${education || 'not provided'}
+
+Analyze every section and return this exact JSON:
+{
+  "overallScore": 62,
+  "headlineScore": 70,
+  "aboutScore": 55,
+  "experienceScore": 60,
+  "skillsScore": 65,
+  "summary": "brutally honest 2-3 sentence verdict",
+  "optimizedHeadline": "complete optimized headline ready to copy paste",
+  "optimizedAbout": "complete rewritten about section — minimum 1500 characters, opens with hook not I am, buyer-focused, keyword-rich throughout, ends with clear CTA",
+  "optimizedExperience": ["Role Title at Company — rewritten bullet point with action verb + result + number"],
+  "optimizedSkills": ["skill 1","skill 2","skill 3","skill 4","skill 5","skill 6","skill 7","skill 8","skill 9","skill 10","skill 11","skill 12","skill 13","skill 14","skill 15"],
+  "keywordsToAdd": ["keyword 1","keyword 2","keyword 3","keyword 4","keyword 5"],
+  "keywordsToRemove": ["weak word 1","word 2","word 3"],
+  "profileChecks": [
+    {"section":"Headline","status":"fail","issue":"specific problem found","fix":"exact copy-paste fix ready to apply"},
+    {"section":"About","status":"warn","issue":"specific problem","fix":"exact fix"},
+    {"section":"Profile Photo","status":"warn","issue":"cannot verify but reminder","fix":"professional headshot, plain background, natural smile"},
+    {"section":"Custom URL","status":"warn","issue":"likely still default URL","fix":"go to Edit Profile then Edit public profile and URL — set to linkedin.com/in/yourfirstnamelastname"},
+    {"section":"Background Banner","status":"fail","issue":"likely default blue banner","fix":"create a 1584x396px banner on Canva showing your skills and contact info"}
+  ],
+  "connectionTips": ["specific tip to grow connections fast 1","tip 2","tip 3","tip 4","tip 5"],
+  "visibilityTips": ["specific LinkedIn visibility tip 1","tip 2","tip 3","tip 4","tip 5"],
+  "nextActions": {
+    "today": ["specific action 1","specific action 2","specific action 3"],
+    "thisWeek": ["specific action 1","specific action 2","specific action 3"],
+    "thisMonth": ["specific action 1","specific action 2","specific action 3"]
+  }
+}`;
+      const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: SYSTEM_PROFILE }] },
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 32000, responseMimeType: 'application/json' },
+            }),
+          }
+      );
+      const d = await res.json();
+      if (d.error) throw new Error(`Gemini error: ${d.error.message}`);
+      const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!raw) throw new Error('Empty response from Gemini');
+      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+      const start = cleaned.indexOf('{'); const end = cleaned.lastIndexOf('}');
+      if (start === -1 || end === -1) throw new Error('Invalid JSON from Gemini');
+      setProfileResult(JSON.parse(cleaned.slice(start, end + 1)));
     } catch(e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
     }
+    clearInterval(stepInterval);
     setLoading(false);
   }
 
   async function runPostGenerator() {
     if (!postTopic) { setError('Please enter a topic.'); return; }
-    setLoading(true); setError(''); setPostResult(null);
+    setLoading(true); setError(''); setPostResult(null); setLoadingStep(0);
+    const stepInterval = setInterval(() => setLoadingStep(s => Math.min(s + 1, postSteps.length - 1)), 2500);
     try {
-      const res = await fetch('/api/linkedin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'posts', topic: postTopic, background: postBackground, goal: postGoal, industry }),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error);
-      setPostResult(data.data);
+      const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+      if (!GEMINI_KEY) throw new Error('Gemini API key not configured');
+      const userPrompt = `Generate 5 viral LinkedIn posts for this person.
+
+TOPIC/STORY: ${postTopic}
+BACKGROUND: ${postBackground || 'freelance developer'}
+INDUSTRY: ${industry || 'Technology'}
+GOAL WITH POSTS: ${postGoal}
+
+Create 5 posts in these exact formats: Hook Story, Listicle, Personal Story, Controversial Opinion, Value/Tips.
+
+Return this exact JSON:
+{
+  "contentStrategy": "specific 1-2 sentence strategy for this person's goal and audience",
+  "profileNotes": "one specific tip about their profile based on their background",
+  "posts": [
+    {
+      "format": "Hook Story Post",
+      "hook": "The single first line — must work without clicking see more. Max 150 chars.",
+      "body": "The full body. Short punchy sentences. One idea per line. White space between paragraphs. 800-1200 characters.",
+      "cta": "One specific question or call to action that drives comments",
+      "fullPost": "hook + double newline + body + double newline + cta + double newline + hashtags all combined ready to copy paste",
+      "whyItWorks": "specific reason this format will perform well for their goal",
+      "bestTime": "Tuesday 8am or similar specific recommendation",
+      "hashtags": ["#hashtag1","#hashtag2","#hashtag3"]
+    }
+  ]
+}`;
+      const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: SYSTEM_POSTS }] },
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 32000, responseMimeType: 'application/json' },
+            }),
+          }
+      );
+      const d = await res.json();
+      if (d.error) throw new Error(`Gemini error: ${d.error.message}`);
+      const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!raw) throw new Error('Empty response from Gemini');
+      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+      const start = cleaned.indexOf('{'); const end = cleaned.lastIndexOf('}');
+      if (start === -1 || end === -1) throw new Error('Invalid JSON from Gemini');
+      setPostResult(JSON.parse(cleaned.slice(start, end + 1)));
     } catch(e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
     }
+    clearInterval(stepInterval);
     setLoading(false);
   }
 
@@ -96,72 +245,377 @@ export default function Home() {
     navigator.clipboard.writeText(text);
   }
 
-  function downloadPDF() {
+  async function downloadPDF() {
     if (!profileResult) return;
-    const content = `
-LINKEDIN PROFILE OPTIMIZATION REPORT
-Generated by LinkedPro AI
-=====================================
+    // Load jsPDF from CDN if not already loaded
+    if (!(window as any).jspdf) {
+      await new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => resolve(); s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { jsPDF } = (window as any).jspdf;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, M = 16, cW = 178;
+    let y = 0;
 
-OVERALL SCORE: ${profileResult.overallScore}/100
-Headline Score: ${profileResult.headlineScore}/100
-About Score: ${profileResult.aboutScore}/100
-Experience Score: ${profileResult.experienceScore}/100
-Skills Score: ${profileResult.skillsScore}/100
+    function np() { doc.addPage(); y = M; }
+    function cy(n: number) { if (y + n > H - M) np(); }
+    function cl(t: string) {
+      return (t || '').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
+          .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
+          .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
+          .replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim();
+    }
+    function wrap(t: string, w: number, fs: number) { doc.setFontSize(fs); return doc.splitTextToSize(cl(t), w); }
+    function sCol(s: number): [number,number,number] { return s >= 80 ? [0,180,120] : s >= 60 ? [234,179,8] : [220,50,50]; }
+    function footer(p: number, t: number) {
+      doc.setPage(p);
+      doc.setFillColor(0, 100, 255); doc.rect(0, H-8, W, 8, 'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(7);
+      doc.text('LinkedPro AI', M, H-3);
+      doc.text(`Page ${p} of ${t}`, W/2, H-3, { align: 'center' });
+      doc.text('linkedin-optimizer.vercel.app', W-M, H-3, { align: 'right' });
+    }
 
-SUMMARY
--------
-${profileResult.summary}
+    // COVER
+    doc.setFillColor(8, 12, 20); doc.rect(0, 0, W, H, 'F');
+    doc.setFillColor(0, 100, 255); doc.rect(0, 0, W, 70, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(22); doc.setFont('helvetica','bold');
+    doc.text('LinkedIn Profile Optimization Report', M, 28);
+    doc.setFontSize(11); doc.setFont('helvetica','normal');
+    doc.text('Generated by LinkedPro AI', M, 40);
+    doc.setFontSize(9); doc.text(new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}), M, 52);
+    // Score badge
+    doc.setFillColor(20, 29, 46); doc.roundedRect(W-56, 10, 40, 48, 4, 4, 'F');
+    doc.setTextColor(...sCol(profileResult.overallScore));
+    doc.setFontSize(28); doc.setFont('helvetica','bold');
+    doc.text(String(profileResult.overallScore), W-36, 36, { align: 'center' });
+    doc.setFontSize(8); doc.setTextColor(150,180,220);
+    doc.text('/100', W-36, 44, { align: 'center' });
+    doc.text('OVERALL', W-36, 52, { align: 'center' });
+    // Sub scores
+    const scores = [
+      {l:'Headline', v:profileResult.headlineScore},{l:'About', v:profileResult.aboutScore},
+      {l:'Experience', v:profileResult.experienceScore},{l:'Skills', v:profileResult.skillsScore},
+    ];
+    let sx = M;
+    scores.forEach((s: {l:string, v:number}) => {
+      doc.setFillColor(20,29,46); doc.roundedRect(sx, 82, 40, 22, 3, 3, 'F');
+      doc.setTextColor(...sCol(s.v)); doc.setFontSize(14); doc.setFont('helvetica','bold');
+      doc.text(String(s.v), sx+20, 93, { align: 'center' });
+      doc.setFontSize(7); doc.setTextColor(100,140,180);
+      doc.text(s.l.toUpperCase(), sx+20, 100, { align: 'center' });
+      sx += 46;
+    });
+    // Summary box
+    doc.setFillColor(15,25,45); doc.roundedRect(M, 114, cW, 40, 4, 4, 'F');
+    doc.setTextColor(0,180,120); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('SUMMARY', M+8, 124);
+    doc.setTextColor(200,220,240); doc.setFont('helvetica','normal');
+    wrap(profileResult.summary, cW-16, 8.5).slice(0,4).forEach((l:string,i:number) => doc.text(l, M+8, 132+i*6));
 
-OPTIMIZED HEADLINE
-------------------
-${profileResult.optimizedHeadline}
+    // PAGE 2 — HEADLINE & ABOUT
+    doc.addPage(); y = M;
+    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
+    doc.text('OPTIMIZED HEADLINE & ABOUT SECTION', M, 10); y = 22;
 
-OPTIMIZED ABOUT SECTION
------------------------
-${profileResult.optimizedAbout}
+    // Headline
+    cy(30);
+    doc.setFillColor(240,245,255); doc.roundedRect(M, y, cW, 24, 3, 3, 'F');
+    doc.setFillColor(0,100,255); doc.rect(M, y, 3, 24, 'F');
+    doc.setTextColor(30,50,100); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('OPTIMIZED HEADLINE', M+7, y+8);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    wrap(profileResult.optimizedHeadline, cW-16, 9).slice(0,2).forEach((l:string,i:number) => doc.text(l, M+7, y+16+i*5));
+    y += 30;
 
-OPTIMIZED EXPERIENCE DESCRIPTIONS
------------------------------------
-${profileResult.optimizedExperience?.map((e,i) => `${i+1}. ${e}`).join('\n')}
+    // About
+    const aboutLines = wrap(profileResult.optimizedAbout, cW-16, 8);
+    const aboutH = Math.min(aboutLines.length * 5 + 20, 180);
+    cy(aboutH);
+    doc.setFillColor(240,245,255); doc.roundedRect(M, y, cW, aboutH, 3, 3, 'F');
+    doc.setFillColor(0,100,255); doc.rect(M, y, 3, aboutH, 'F');
+    doc.setTextColor(30,50,100); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('OPTIMIZED ABOUT SECTION', M+7, y+8);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    let ay = y + 16;
+    for (const l of aboutLines) {
+      if (ay + 5 > y + aboutH - 4) break;
+      doc.text(l, M+7, ay); ay += 5;
+    }
+    y += aboutH + 6;
 
-RECOMMENDED SKILLS
-------------------
-${profileResult.optimizedSkills?.join(', ')}
+    // PAGE 3 — EXPERIENCE & SKILLS
+    doc.addPage(); y = M;
+    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
+    doc.text('EXPERIENCE & SKILLS', M, 10); y = 22;
 
-KEYWORDS TO ADD
----------------
-${profileResult.keywordsToAdd?.join(', ')}
+    profileResult.optimizedExperience?.forEach((exp: string, i: number) => {
+      const lines = wrap(exp, cW-16, 8);
+      const bh = Math.max(20, lines.length*5+14);
+      cy(bh+4);
+      doc.setFillColor(240,245,255); doc.roundedRect(M, y, cW, bh, 3, 3, 'F');
+      doc.setFillColor(0,100,255); doc.rect(M, y, 3, bh, 'F');
+      doc.setTextColor(30,50,100); doc.setFontSize(8); doc.setFont('helvetica','bold');
+      doc.text(`ROLE ${i+1}`, M+7, y+8);
+      doc.setFont('helvetica','normal');
+      lines.forEach((l:string,j:number) => doc.text(l, M+7, y+15+j*5));
+      y += bh+6;
+    });
 
-PROFILE CHECKS
---------------
-${profileResult.profileChecks?.map(c => `[${c.status.toUpperCase()}] ${c.section}: ${c.issue}\nFix: ${c.fix}`).join('\n\n')}
+    cy(14); doc.setFillColor(0,180,120); doc.rect(0,y,W,10,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
+    doc.text('RECOMMENDED SKILLS', M, y+7); y += 16;
+    const skillsPerRow = 4; const skillW = (cW-12)/skillsPerRow;
+    profileResult.optimizedSkills?.forEach((s: string, i: number) => {
+      const col = i % skillsPerRow; const row = Math.floor(i/skillsPerRow);
+      if (col === 0 && row > 0) { cy(12); }
+      const sx2 = M + col*(skillW+4);
+      const sy = y + Math.floor(i/skillsPerRow)*12;
+      if (sy + 10 < H - M) {
+        doc.setFillColor(230,240,255); doc.roundedRect(sx2, sy, skillW, 9, 2, 2, 'F');
+        doc.setTextColor(0,60,180); doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text(cl(s), sx2+skillW/2, sy+6, { align:'center', maxWidth: skillW-4 });
+      }
+    });
+    y += (Math.ceil((profileResult.optimizedSkills?.length||0)/skillsPerRow))*12+6;
 
-CONNECTION & VISIBILITY TIPS
------------------------------
-${profileResult.connectionTips?.map((t,i) => `${i+1}. ${t}`).join('\n')}
+    // PAGE 4 — KEYWORDS & PROFILE CHECKS
+    doc.addPage(); y = M;
+    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
+    doc.text('KEYWORDS & PROFILE CHECKS', M, 10); y = 22;
 
-NEXT ACTIONS
-------------
-TODAY:
-${profileResult.nextActions?.today?.map(a => `• ${a}`).join('\n')}
+    // Keywords side by side
+    const hw = (cW-8)/2;
+    doc.setFillColor(230,255,245); doc.roundedRect(M, y, hw, 8, 2, 2, 'F');
+    doc.setTextColor(0,120,80); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('KEYWORDS TO ADD', M+4, y+6);
+    doc.setFillColor(255,235,235); doc.roundedRect(M+hw+8, y, hw, 8, 2, 2, 'F');
+    doc.setTextColor(160,0,0); doc.text('KEYWORDS TO REMOVE', M+hw+12, y+6);
+    y += 12;
+    const maxKw = Math.max(profileResult.keywordsToAdd?.length||0, profileResult.keywordsToRemove?.length||0);
+    for (let i=0; i<maxKw; i++) {
+      cy(7);
+      if (profileResult.keywordsToAdd?.[i]) {
+        doc.setTextColor(0,120,80); doc.setFontSize(8); doc.setFont('helvetica','normal');
+        doc.text(`+ ${cl(profileResult.keywordsToAdd[i])}`, M+4, y+5);
+      }
+      if (profileResult.keywordsToRemove?.[i]) {
+        doc.setTextColor(160,0,0);
+        doc.text(`- ${cl(profileResult.keywordsToRemove[i])}`, M+hw+12, y+5);
+      }
+      y += 7;
+    }
+    y += 6;
 
-THIS WEEK:
-${profileResult.nextActions?.thisWeek?.map(a => `• ${a}`).join('\n')}
+    // Profile checks
+    const statusC = (s:string): [number,number,number] => s==='pass'?[0,150,80]:s==='warn'?[180,120,0]:[180,0,0];
+    profileResult.profileChecks?.forEach((c: {section:string,status:string,issue:string,fix:string}) => {
+      const issueL = wrap(c.issue, cW-36, 7.5);
+      const fixL = wrap('Fix: '+c.fix, cW-36, 7.5);
+      const bh = Math.max(18, issueL.length*5+fixL.length*5+14);
+      cy(bh+4);
+      doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, bh, 3, 3, 'F');
+      doc.setFillColor(...statusC(c.status)); doc.rect(M, y, 3, bh, 'F');
+      doc.setTextColor(...statusC(c.status)); doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+      doc.text(c.status.toUpperCase(), M+7, y+8);
+      doc.setTextColor(30,50,80); doc.setFontSize(9);
+      doc.text(cl(c.section), M+28, y+8);
+      doc.setTextColor(80,80,80); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      issueL.forEach((l:string,i:number) => doc.text(l, M+7, y+15+i*5));
+      let fy = y+15+issueL.length*5+2;
+      doc.setTextColor(0,120,60);
+      fixL.forEach((l:string,i:number) => doc.text(l, M+7, fy+i*5));
+      y += bh+5;
+    });
 
-THIS MONTH:
-${profileResult.nextActions?.thisMonth?.map(a => `• ${a}`).join('\n')}
+    // PAGE 5 — TIPS & ACTIONS
+    doc.addPage(); y = M;
+    doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
+    doc.text('TIPS & ACTION PLAN', M, 10); y = 22;
 
-=====================================
-LinkedPro AI — linkedin-optimizer.vercel.app
-    `.trim();
+    const drawTips = (title: string, tips: string[], color: [number,number,number]) => {
+      cy(12); doc.setFillColor(...color); doc.rect(0,y,W,10,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(title, M, y+7); y += 14;
+      tips?.forEach((t: string) => {
+        const lines = wrap(t, cW-16, 8);
+        const bh = Math.max(14, lines.length*5+8);
+        cy(bh+3);
+        doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, bh, 2, 2, 'F');
+        doc.setTextColor(...color); doc.setFontSize(10); doc.text('>', M+5, y+bh/2+3);
+        doc.setTextColor(50,60,80); doc.setFontSize(8); doc.setFont('helvetica','normal');
+        lines.forEach((l:string,i:number) => doc.text(l, M+14, y+8+i*5));
+        y += bh+4;
+      });
+      y += 4;
+    };
 
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'linkedin-optimization-report.txt';
-    a.click();
+    drawTips('VISIBILITY TIPS', profileResult.visibilityTips, [0,100,255]);
+    drawTips('CONNECTION GROWTH TIPS', profileResult.connectionTips, [0,150,100]);
+
+    // Action plan
+    cy(12); doc.setFillColor(20,29,46); doc.rect(0,y,W,10,'F');
+    doc.setTextColor(0,180,120); doc.setFontSize(9); doc.setFont('helvetica','bold');
+    doc.text('ACTION PLAN', M, y+7); y += 14;
+    [
+      {label:'DO TODAY', items:profileResult.nextActions?.today, color:[220,50,50] as [number,number,number]},
+      {label:'THIS WEEK', items:profileResult.nextActions?.thisWeek, color:[180,120,0] as [number,number,number]},
+      {label:'THIS MONTH', items:profileResult.nextActions?.thisMonth, color:[0,140,80] as [number,number,number]},
+    ].forEach((g: {label:string, items:string[]|undefined, color:[number,number,number]}) => {
+      cy(10); doc.setTextColor(...g.color); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(g.label, M, y+6); y += 10;
+      g.items?.forEach((a: string) => {
+        const lines = wrap(a, cW-14, 8);
+        const bh = Math.max(12, lines.length*5+6);
+        cy(bh+3);
+        doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, bh, 2, 2, 'F');
+        doc.setTextColor(...g.color); doc.setFontSize(9); doc.text('•', M+5, y+bh/2+3);
+        doc.setTextColor(50,60,80); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        lines.forEach((l:string,i:number) => doc.text(l, M+12, y+7+i*5));
+        y += bh+4;
+      });
+      y += 4;
+    });
+
+    // Footers
+    const total = doc.getNumberOfPages();
+    for (let p = 1; p <= total; p++) footer(p, total);
+    doc.save('linkedin-optimization-report.pdf');
+  }
+
+  async function downloadPostsPDF() {
+    if (!postResult) return;
+    if (!(window as any).jspdf) {
+      await new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => resolve(); s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { jsPDF } = (window as any).jspdf;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc: any = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, M = 16, cW = 178;
+    let y = 0;
+    function np() { doc.addPage(); y = M; }
+    function cy(n: number) { if (y + n > H - M) np(); }
+    function cl(t: string) {
+      return (t||'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
+          .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
+          .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
+          .replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim();
+    }
+    function wrap(t: string, w: number, fs: number) { doc.setFontSize(fs); return doc.splitTextToSize(cl(t), w); }
+    function footer(p: number, t: number) {
+      doc.setPage(p);
+      doc.setFillColor(0,100,255); doc.rect(0,H-8,W,8,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(7);
+      doc.text('LinkedPro AI — Post Generator', M, H-3);
+      doc.text(`Page ${p} of ${t}`, W/2, H-3, { align:'center' });
+      doc.text('linkedin-optimizer.vercel.app', W-M, H-3, { align:'right' });
+    }
+
+    // COVER
+    doc.setFillColor(8,12,20); doc.rect(0,0,W,H,'F');
+    doc.setFillColor(0,100,255); doc.rect(0,0,W,60,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(20); doc.setFont('helvetica','bold');
+    doc.text('LinkedIn Viral Posts', M, 26);
+    doc.setFontSize(11); doc.setFont('helvetica','normal');
+    doc.text('Generated by LinkedPro AI', M, 38);
+    doc.setFontSize(9);
+    doc.text(new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}), M, 50);
+    // Strategy box
+    doc.setFillColor(15,25,45); doc.roundedRect(M, 76, cW, 36, 4, 4, 'F');
+    doc.setTextColor(0,180,120); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('CONTENT STRATEGY', M+8, 86);
+    doc.setTextColor(180,210,240); doc.setFont('helvetica','normal');
+    wrap(postResult.contentStrategy, cW-16, 8.5).slice(0,3).forEach((l:string,i:number) => doc.text(l, M+8, 94+i*6));
+
+    // One post per page
+    postResult.posts?.forEach((p: {format:string,hook:string,body:string,cta:string,hashtags:string[],whyItWorks:string,bestTime:string,fullPost:string}, idx: number) => {
+      doc.addPage(); y = M;
+      doc.setFillColor(0,100,255); doc.rect(0,0,W,14,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
+      doc.text(`POST ${idx+1} — ${cl(p.format).toUpperCase()}`, M, 10); y = 22;
+
+      // Best time badge
+      doc.setFillColor(20,29,46); doc.roundedRect(W-M-50, 0, 52, 14, 0, 0, 'F');
+      doc.setTextColor(100,160,255); doc.setFontSize(7);
+      doc.text(`Best: ${cl(p.bestTime)}`, W-M-48, 9);
+
+      // Hook
+      const hookL = wrap(p.hook, cW-16, 10);
+      const hookH = Math.max(20, hookL.length*7+14);
+      cy(hookH+4);
+      doc.setFillColor(230,240,255); doc.roundedRect(M, y, cW, hookH, 3, 3, 'F');
+      doc.setFillColor(0,100,255); doc.rect(M, y, 3, hookH, 'F');
+      doc.setTextColor(0,50,150); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text('HOOK (FIRST LINE)', M+7, y+8);
+      doc.setTextColor(10,30,100); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      hookL.forEach((l:string,i:number) => doc.text(l, M+7, y+15+i*7));
+      y += hookH+6;
+
+      // Body
+      const bodyL = wrap(p.body, cW-16, 8);
+      const bodyH = Math.max(30, bodyL.length*5+14);
+      cy(20);
+      doc.setFillColor(248,250,252); doc.roundedRect(M, y, cW, Math.min(bodyH, H-y-M-20), 3, 3, 'F');
+      doc.setFillColor(80,120,200); doc.rect(M, y, 3, Math.min(bodyH, H-y-M-20), 'F');
+      doc.setTextColor(50,80,150); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text('BODY', M+7, y+8);
+      doc.setTextColor(40,50,70); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+      let by = y+14;
+      for (const l of bodyL) {
+        if (by+5 > H-M-20) { doc.addPage(); y=M; by=M; }
+        doc.text(l, M+7, by); by+=5;
+      }
+      y = by+8;
+
+      // CTA
+      const ctaL = wrap(p.cta, cW-16, 9);
+      const ctaH = Math.max(18, ctaL.length*6+12);
+      cy(ctaH+4);
+      doc.setFillColor(230,255,245); doc.roundedRect(M, y, cW, ctaH, 3, 3, 'F');
+      doc.setFillColor(0,160,100); doc.rect(M, y, 3, ctaH, 'F');
+      doc.setTextColor(0,100,60); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text('CALL TO ACTION', M+7, y+8);
+      doc.setTextColor(0,80,50); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      ctaL.forEach((l:string,i:number) => doc.text(l, M+7, y+14+i*6));
+      y += ctaH+6;
+
+      // Hashtags
+      cy(14);
+      doc.setTextColor(0,100,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(p.hashtags?.join('  '), M, y+6);
+      y += 14;
+
+      // Why it works
+      const whyL = wrap(p.whyItWorks, cW-16, 8);
+      const whyH = Math.max(16, whyL.length*5+12);
+      cy(whyH+4);
+      doc.setFillColor(255,250,235); doc.roundedRect(M, y, cW, whyH, 3, 3, 'F');
+      doc.setTextColor(150,100,0); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text('WHY THIS WORKS', M+7, y+8);
+      doc.setTextColor(100,70,0); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      whyL.forEach((l:string,i:number) => doc.text(l, M+7, y+14+i*5));
+      y += whyH+6;
+    });
+
+    const total = doc.getNumberOfPages();
+    for (let p=1; p<=total; p++) footer(p, total);
+    doc.save('linkedin-viral-posts.pdf');
   }
 
   const scoreColor = (s: number) => s >= 80 ? '#00e5a0' : s >= 60 ? '#f59e0b' : '#ef4444';
@@ -269,9 +723,22 @@ LinkedPro AI — linkedin-optimizer.vercel.app
 
                       {error && <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', fontSize: 14 }}>{error}</div>}
 
-                      <button onClick={runProfileOptimizer} disabled={loading} style={{ padding: '16px 32px', borderRadius: 12, background: loading ? '#1e293b' : 'linear-gradient(135deg, #0064ff, #0040cc)', border: 'none', color: 'white', fontSize: 16, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8 }}>
-                        {loading ? '⟳ Analyzing & Optimizing...' : 'Optimize My LinkedIn Profile →'}
-                      </button>
+                      {loading ? (
+                          <div style={{ padding: '28px 24px', borderRadius: 16, background: '#0f1623', border: '1px solid rgba(0,100,255,0.2)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 32, marginBottom: 16 }}>⟳</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#e8edf5', marginBottom: 8 }}>{profileSteps[loadingStep]}</div>
+                            <div style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>This takes 15-30 seconds — AI is writing your full rewrite</div>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              {profileSteps.map((_, i) => (
+                                  <div key={i} style={{ width: i === loadingStep ? 24 : 8, height: 6, borderRadius: 3, background: i === loadingStep ? '#0064ff' : i < loadingStep ? '#00e5a0' : '#1e293b', transition: 'all 0.4s ease' }} />
+                              ))}
+                            </div>
+                          </div>
+                      ) : (
+                          <button onClick={runProfileOptimizer} style={{ padding: '16px 32px', borderRadius: 12, background: 'linear-gradient(135deg, #0064ff, #0040cc)', border: 'none', color: 'white', fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}>
+                            Optimize My LinkedIn Profile →
+                          </button>
+                      )}
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -367,10 +834,19 @@ LinkedPro AI — linkedin-optimizer.vercel.app
                       </Section>
 
                       {/* VISIBILITY TIPS */}
-                      <Section title="◎ VISIBILITY & CONNECTION TIPS" color="#60a5fa">
+                      <Section title="◎ VISIBILITY TIPS" color="#60a5fa">
                         {profileResult.visibilityTips?.map((t, i) => (
                             <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 14, color: '#94a3b8', display: 'flex', gap: 10 }}>
                               <span style={{ color: '#0064ff', flexShrink: 0 }}>→</span>{t}
+                            </div>
+                        ))}
+                      </Section>
+
+                      {/* CONNECTION TIPS */}
+                      <Section title="◎ CONNECTION GROWTH TIPS" color="#00e5a0">
+                        {profileResult.connectionTips?.map((t, i) => (
+                            <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: 14, color: '#94a3b8', display: 'flex', gap: 10 }}>
+                              <span style={{ color: '#00e5a0', flexShrink: 0 }}>→</span>{t}
                             </div>
                         ))}
                       </Section>
@@ -450,9 +926,22 @@ LinkedPro AI — linkedin-optimizer.vercel.app
 
                       {error && <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', fontSize: 14 }}>{error}</div>}
 
-                      <button onClick={runPostGenerator} disabled={loading} style={{ padding: '16px 32px', borderRadius: 12, background: loading ? '#1e293b' : 'linear-gradient(135deg, #0064ff, #0040cc)', border: 'none', color: 'white', fontSize: 16, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8 }}>
-                        {loading ? '⟳ Generating Viral Posts...' : 'Generate 5 Viral Posts →'}
-                      </button>
+                      {loading ? (
+                          <div style={{ padding: '28px 24px', borderRadius: 16, background: '#0f1623', border: '1px solid rgba(0,100,255,0.2)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 32, marginBottom: 16 }}>⟳</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#e8edf5', marginBottom: 8 }}>{postSteps[loadingStep]}</div>
+                            <div style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>Writing 5 viral posts tailored to your story...</div>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              {postSteps.map((_, i) => (
+                                  <div key={i} style={{ width: i === loadingStep ? 24 : 8, height: 6, borderRadius: 3, background: i === loadingStep ? '#0064ff' : i < loadingStep ? '#00e5a0' : '#1e293b', transition: 'all 0.4s ease' }} />
+                              ))}
+                            </div>
+                          </div>
+                      ) : (
+                          <button onClick={runPostGenerator} style={{ padding: '16px 32px', borderRadius: 12, background: 'linear-gradient(135deg, #0064ff, #0040cc)', border: 'none', color: 'white', fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}>
+                            Generate 5 Viral Posts →
+                          </button>
+                      )}
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -489,6 +978,9 @@ LinkedPro AI — linkedin-optimizer.vercel.app
                       ))}
 
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <button onClick={downloadPostsPDF} style={{ padding: '14px 24px', borderRadius: 12, background: 'linear-gradient(135deg, #0064ff, #0040cc)', border: 'none', color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                          ↓ Download All Posts PDF
+                        </button>
                         <button onClick={() => { setPostResult(null); setPostTopic(''); }} style={{ padding: '14px 24px', borderRadius: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 14, cursor: 'pointer' }}>
                           ↺ Generate New Posts
                         </button>
