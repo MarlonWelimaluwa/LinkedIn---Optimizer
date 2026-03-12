@@ -284,15 +284,15 @@ Return this exact JSON:
     function cy(n: number) { if (y + n > H - 18) np(); }
     function cl(t: string) {
       return (t || '')
-        .replace(/\*\*([^*]+)\*\*/g,'$1')
-        .replace(/\*([^*]+)\*/g,'$1')
-        .replace(/\*/g,'')
-        .replace(/✓/g,'+').replace(/✗/g,'x').replace(/→/g,'>').replace(/←/g,'<')
-        .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
-        .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
-        .replace(/[^\x20-\x7E\xA0-\xFF]/g,' ')
-        .replace(/  +/g,' ')
-        .trim();
+          .replace(/\*\*([^*]+)\*\*/g,'$1')
+          .replace(/\*([^*]+)\*/g,'$1')
+          .replace(/\*/g,'')
+          .replace(/✓/g,'+').replace(/✗/g,'x').replace(/→/g,'>').replace(/←/g,'<')
+          .replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"')
+          .replace(/[\u2013\u2014]/g,'-').replace(/\u2192/g,'>').replace(/\u2022/g,'-')
+          .replace(/[^\x20-\x7E\xA0-\xFF]/g,' ')
+          .replace(/  +/g,' ')
+          .trim();
     }
     function wrap(t: string, w: number, fs: number) { doc.setFontSize(fs); return doc.splitTextToSize(cl(t), w); }
     function scoreColor(s: number): [number,number,number] { return s >= 80 ? [22,163,74] : s >= 60 ? [202,138,4] : [220,38,38]; }
@@ -449,8 +449,8 @@ Return this exact JSON:
     y += 26;
 
     // Arrow
-    doc.setTextColor(100,116,139); doc.setFontSize(12);
-    doc.text('↓  Optimized to:', ML, y+6);
+    doc.setTextColor(100,116,139); doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text('>> Optimized to:', ML, y+6);
     y += 10;
 
     // Optimized headline
@@ -597,15 +597,16 @@ Return this exact JSON:
     sectionHeader('SECTION 6 — PROFILE CHECKS');
 
     // Legend
-    cy(10);
+    cy(14);
     doc.setFontSize(7); doc.setFont('helvetica','normal');
     [['FAIL', [220,38,38]], ['WARN', [202,138,4]], ['PASS', [22,163,74]]].forEach(([label, col]: any, i: number) => {
       doc.setFillColor(...col); doc.roundedRect(ML + i*28, y, 24, 6, 1, 1, 'F');
       doc.setTextColor(255,255,255); doc.text(label, ML+12+i*28, y+4.5, { align:'center' });
     });
-    doc.setTextColor(100,116,139); doc.setFontSize(7);
-    doc.text('FAIL = problem found in your text   WARN = cannot verify from text — check manually   PASS = looks good', ML+90, y+4.5);
-    y += 12;
+    doc.setTextColor(100,116,139); doc.setFontSize(6.5);
+    doc.text('FAIL = problem found in your text', ML+90, y+3);
+    doc.text('WARN = cannot verify from text — check manually   PASS = looks good', ML+90, y+8);
+    y += 14;
 
     profileResult.profileChecks?.forEach((c: {section:string,status:string,issue:string,fix:string}) => {
       const issueL = wrap(c.issue, cW-30, 7.5);
