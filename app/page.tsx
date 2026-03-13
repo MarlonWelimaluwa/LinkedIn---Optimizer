@@ -42,6 +42,10 @@ ABOUT SECTION REWRITING RULES:
 - If no metrics provided, use placeholders: [X years], [X clients], [X% result]
 - Base the rewrite strictly on what the user actually told you
 - Make it buyer-focused and keyword-rich but factually honest
+- NEVER mention specific technologies, frameworks, tools, platforms, or programming languages the user did NOT explicitly provide
+- If user said "Web Design, E-commerce, SEO" — only use those exact skills. Do NOT add Angular, Vue, React, Python, AWS, Laravel, or any other tech they never mentioned
+- Only expand on what the user gave you — never invent capabilities, services, or expertise they did not claim
+- This rule is absolute: if it is not in the user input, it does not go in the rewrite
 
 SCORING RULES — Be fair and accurate:
 - Only penalize for problems visible in the provided text
@@ -485,10 +489,11 @@ Return this exact JSON:
     let isFirstAboutBox = true;
 
     while (aboutLineIdx < aboutLines.length) {
-      cy(30);
+      // Always start on a fresh page check FIRST, then recalculate available height
+      if (y + 30 > H - 22) { doc.addPage(); y = 20; doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F'); doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F'); }
       const availH = H - y - 22;
-      const linesPerBox = Math.floor((availH - 14) / 5);
-      const chunkLines = aboutLines.slice(aboutLineIdx, aboutLineIdx + linesPerBox);
+      const maxLines = Math.max(1, Math.floor((availH - 14) / 5));
+      const chunkLines = aboutLines.slice(aboutLineIdx, aboutLineIdx + maxLines);
       const boxH = chunkLines.length * 5 + 14;
 
       doc.setFillColor(250,251,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
@@ -498,7 +503,7 @@ Return this exact JSON:
       doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
       chunkLines.forEach((l: string, idx: number) => doc.text(l, ML+5, y+13+idx*5));
       y += boxH + 6;
-      aboutLineIdx += linesPerBox;
+      aboutLineIdx += maxLines;
       isFirstAboutBox = false;
       if (aboutLineIdx < aboutLines.length) { doc.addPage(); y = 20; doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F'); doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F'); }
     }
@@ -700,7 +705,6 @@ Return this exact JSON:
     doc.text('Your profile is ready to be transformed.', ML+cW/2, y+11, { align:'center' });
     doc.setFontSize(8); doc.setFont('helvetica','normal');
     doc.text('Apply the rewrites above, check the manual verification items, and execute your action plan.', ML+cW/2, y+18, { align:'center' });
-    doc.text('Questions? Visit linkedin-optimizer.vercel.app', ML+cW/2, y+24, { align:'center' });
 
     // All footers
     const total = doc.getNumberOfPages();
