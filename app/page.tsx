@@ -504,7 +504,7 @@ Return this exact JSON:
       doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
       chunkLines.forEach((l: string, idx: number) => doc.text(l, ML+5, y+13+idx*5));
       y += boxH + 6;
-      aboutLineIdx += maxLines;
+      aboutLineIdx += chunkLines.length;
       isFirstAboutBox = false;
       if (aboutLineIdx < aboutLines.length) { doc.addPage(); y = 20; doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F'); doc.setFillColor(30,64,175); doc.rect(0,0,W,3,'F'); }
     }
