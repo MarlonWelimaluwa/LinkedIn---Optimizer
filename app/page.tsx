@@ -154,7 +154,8 @@ Analyze every section and return this exact JSON:
   "summary": "brutally honest 2-3 sentence verdict",
   "optimizedHeadline": "complete optimized headline ready to copy paste",
   "optimizedAbout": "complete rewritten about section — minimum 1500 characters, opens with hook not I am, buyer-focused, keyword-rich throughout, ends with clear CTA",
-  "optimizedExperience": ["Role Title at Company — rewritten bullet point with action verb + result + number"],
+  "optimizedExperience": ["Role Title | Company Name\n- Spearheaded [specific action] resulting in [X% outcome]\n- Delivered [specific result] for [X clients], achieving [X%] satisfaction\n- Managed [X projects] end-to-end, ensuring on-time delivery and [X% result]"],
+  // IMPORTANT: Each array item = ONE complete role. Put ALL bullet points for that role inside ONE string separated by \n-. NEVER put individual bullets as separate array items. One role = one array item.
   "optimizedSkills": ["skill 1","skill 2","skill 3","skill 4","skill 5","skill 6","skill 7","skill 8","skill 9","skill 10","skill 11","skill 12","skill 13","skill 14","skill 15"],
   "keywordsToAdd": ["keyword 1","keyword 2","keyword 3","keyword 4","keyword 5"],
   "keywordsToRemove": ["weak word 1","word 2","word 3"],
@@ -524,18 +525,49 @@ Return this exact JSON:
     y += 13;
 
     profileResult.optimizedExperience?.forEach((exp: string, i: number) => {
-      const lines = wrap(exp, cW-14, 8);
-      const bh = Math.max(16, lines.length * 5 + 10);
+      // Split into role title line and bullet lines
+      const parts = exp.split(/\n-/).map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+      const roleTitle = parts[0] || exp;
+      const bullets = parts.slice(1);
+
+      // Calculate total height: title line + all bullet lines
+      const titleLines = wrap(roleTitle, cW-16, 8.5);
+      const allBulletLines: string[] = [];
+      bullets.forEach((b: string) => {
+        const bl = wrap(b, cW-22, 8);
+        bl.forEach((l: string) => allBulletLines.push(l));
+      });
+      const totalLines = titleLines.length + allBulletLines.length;
+      const bh = Math.max(18, titleLines.length * 6 + allBulletLines.length * 5 + 14);
       cy(bh + 4);
+
       doc.setFillColor(248,250,252); doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
       doc.roundedRect(ML, y, cW, bh, 2, 2, 'FD');
-      // Number badge
-      const numCol = scoreColor(75);
-      doc.setFillColor(...numCol); doc.circle(ML+5, y+bh/2, 3.5, 'F');
+
+      // Number badge — always role number only
+      doc.setFillColor(30,64,175); doc.circle(ML+5, y+8, 3.5, 'F');
       doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
-      doc.text(String(i+1), ML+5, y+bh/2+2.5, { align:'center' });
-      doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-      lines.forEach((l: string, j: number) => doc.text(l, ML+12, y+9+j*5));
+      doc.text(String(i+1), ML+5, y+10.5, { align:'center' });
+
+      // Role title — bold
+      doc.setTextColor(15,23,42); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+      titleLines.forEach((l: string, j: number) => doc.text(l, ML+12, y+9+j*6));
+      let by = y + 9 + titleLines.length * 6 + 2;
+
+      // Bullet lines — normal, indented with dash
+      if (bullets.length > 0) {
+        doc.setDrawColor(226,232,240); doc.setLineWidth(0.2);
+        doc.line(ML+12, by-1, ML+cW-4, by-1);
+        by += 2;
+        bullets.forEach((b: string) => {
+          const bl = wrap(b, cW-22, 8);
+          doc.setTextColor(100,116,139); doc.setFontSize(8); doc.setFont('helvetica','bold');
+          doc.text('-', ML+13, by+4);
+          doc.setTextColor(51,65,85); doc.setFont('helvetica','normal');
+          bl.forEach((l: string, k: number) => doc.text(l, ML+18, by+4+k*5));
+          by += bl.length * 5 + 3;
+        });
+      }
       y += bh + 4;
     });
 
